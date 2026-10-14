@@ -2,7 +2,7 @@ import React from 'react';
 import Icon from './Icon';
 import './ActivityBar.css';
 
-export type ActivityView = 'explorer' | 'session' | 'search' | 'docs' | 'settings' | 'account' | null;
+export type ActivityView = 'explorer' | 'session' | 'docs' | 'settings' | null;
 
 interface ActivityBarProps {
   activeView: ActivityView;
@@ -14,9 +14,7 @@ interface ActivityBarProps {
 const ACTIVITY_ICONS: Record<Exclude<ActivityView, null>, string> = {
   explorer: 'files',
   session: 'server-environment',
-  search: 'search',
   docs: 'book',
-  account: 'account',
   settings: 'settings-gear',
 };
 
@@ -47,12 +45,10 @@ const ActivityBar: React.FC<ActivityBarProps> = ({ activeView, onViewChange }) =
       <div className="activity-bar-top">
         <ActivityItem view="explorer" active={activeView === 'explorer'} label="Explorer" onClick={onViewChange} />
         <ActivityItem view="session"  active={activeView === 'session'}  label="Session Manager — resources & tool registry" onClick={onViewChange} />
-        <ActivityItem view="search"   active={activeView === 'search'}   label="Search"   onClick={onViewChange} />
         <ActivityItem view="docs"     active={activeView === 'docs'}     label="User Docs" onClick={onViewChange} />
       </div>
 
       <div className="activity-bar-bottom">
-        <ActivityItem view="account"  active={activeView === 'account'}  label="Account"  onClick={onViewChange} />
         <ActivityItem view="settings" active={activeView === 'settings'} label="Settings" onClick={onViewChange} />
       </div>
     </div>

@@ -3,7 +3,8 @@ import App from './App';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // Mock the api module so useWorkflow doesn't try to fetch from a real server
-vi.mock('./services/api', () => ({
+vi.mock('./services/api', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./services/api')>()),
   getOperations: vi.fn().mockResolvedValue([]),
   runStep: vi.fn().mockResolvedValue({ ref_id: 'mock-ref', metrics: {} }),
   fetchDataView: vi.fn().mockResolvedValue({ cells: [] }),
@@ -19,10 +20,14 @@ vi.mock('./services/api', () => ({
 
 describe('App', () => {
   beforeEach(() => {
+    // No backend here: api calls not mocked above stay pending rather than
+    // rejecting with nobody listening.
+    vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})));
     vi.spyOn(console, 'error').mockImplementation(() => {});
   });
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   it('renders main layout', () => {

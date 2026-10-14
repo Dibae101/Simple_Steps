@@ -375,9 +375,9 @@ const Sidebar: React.FC<SidebarProps> = ({ isVisible, currentView, ...rest }) =>
   };
 
   const titles: Record<string, string> = {
-    explorer: 'Explorer', search: 'Search',
+    explorer: 'Explorer',
     docs: 'User Docs',
-    settings: 'Settings', account: 'Account',
+    settings: 'Settings',
   };
 
   return (
@@ -393,17 +393,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isVisible, currentView, ...rest }) =>
         />
       )}
 
-      {currentView === 'search' && (
-        <div className="sidebar-padding">
-          <input type="text" placeholder="Search…"
-            style={{ width: '90%', margin: '10px 5%', padding: '5px',
-              background: '#252526', border: '1px solid #3c3c3c', color: '#fff' }} />
-          <div style={{ marginTop: 10, marginLeft: '5%', color: '#888', fontSize: '0.9em' }}>
-            No results found.
-          </div>
-        </div>
-      )}
-
       {currentView === 'session' && (
         <SessionManager availableOperations={rest.availableOperations} />
       )}
@@ -411,12 +400,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isVisible, currentView, ...rest }) =>
       {currentView === 'docs' && <DocsPanel />}
 
       {currentView === 'settings' && <SettingsPanel />}
-
-      {currentView === 'account' && (
-        <div className="sidebar-padding" style={{ color: '#888', fontStyle: 'italic', padding: 20 }}>
-          User Profiles
-        </div>
-      )}
     </div>
   );
 };

@@ -171,6 +171,18 @@ All corrected against what is actually on disk.
 
 ---
 
+## Round 3 — shell plan reconciled with the code (2026-10-14)
+
+| removed / changed | note |
+|---|---|
+| Search activity‑bar panel (`ActivityBar.tsx`, `Sidebar.tsx`) | A placeholder input that always said "No results found." Re‑add with Phase E4 of `dev_plan/200` |
+| Account activity‑bar panel | Static "User Profiles" text. Accounts are M1, out of scope |
+| `build_frontend.source_hash` now skips `*.test.*` and `setupTests.ts` | Tests never ship, so editing one no longer marks the bundle stale |
+| `App.test.tsx`, `MainLayout.test.tsx` | Were red: their `api` mocks predated `fetchResourceTypes` and others. Now partial mocks over the real module, with `fetch` stubbed |
+| `dev_plan/200` | Status, endpoints, file extension and test baseline corrected; every packs item cut |
+
+---
+
 ## Tier 2 — dead on arrival of a staged item, not before
 
 Do not delete these yet. Each is live today and becomes dead when a specific

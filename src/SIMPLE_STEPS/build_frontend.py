@@ -21,6 +21,11 @@ SOURCE_STAMP = ".source-hash"
 _SOURCE_SUFFIXES = (".ts", ".tsx", ".js", ".jsx", ".css", ".html")
 
 
+def _is_test_only(name: str) -> bool:
+    """Tests never reach the bundle, so editing one must not mark it stale."""
+    return ".test." in name or name == "setupTests.ts"
+
+
 def source_hash(src_dir: str) -> str:
     """
     A stable hash of every build-relevant file under *src_dir*.
@@ -40,7 +45,7 @@ def source_hash(src_dir: str) -> str:
             d for d in dirnames if d != "node_modules" and not d.startswith(".")
         )
         for name in sorted(filenames):
-            if not name.endswith(_SOURCE_SUFFIXES):
+            if not name.endswith(_SOURCE_SUFFIXES) or _is_test_only(name):
                 continue
             path = os.path.join(root, name)
             digest.update(os.path.relpath(path, src_dir).encode())

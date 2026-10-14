@@ -1,8 +1,14 @@
 # 200 — Shell Infrastructure Dev Plan ("Jupyter‑on‑VS‑Code" for Simple Steps)
 
-**Status:** Draft
+**Status:** Active — S0 done, Phase A mostly done (see checkboxes)
+**Last reconciled with the code:** 2026-10-14
 **Owner:** Stuart
 **Audience:** Contributors implementing the app shell around the workflow canvas
+
+> **There are no packs.** `docs/cleanup-map.md` retired them. Tools come from
+> `@simple_step_tool`, and what they use comes from `simple_step_resource`;
+> both appear in the Session Manager panel. Anything below that would add a
+> packs surface has been cut, not deferred.
 
 ---
 
@@ -13,9 +19,9 @@
 **Later (M1 — hosted multi‑user, out of scope for this plan):** the same backend runs on a shared server with its own compute; users connect via a browser; each user gets an isolated workspace + kernel process; auth/sessions/quotas appear. We are *not* implementing this — but we keep the door open by following four rules:
 
 1. **All state lives on the backend.** No browser‑local storage of pipeline content. `localStorage` is allowed only for cosmetic UI prefs (sidebar widths, last‑opened tab). This is already the case and must stay that way.
-2. **Every backend endpoint takes its workspace from a header / query param**, not from a global. Today that param defaults to the single process‑wide workspace; tomorrow it gets resolved per‑request from an auth context. Concretely: prefer `GET /api/files/tree?workspace=<id>&path=...` over a singleton `WORKSPACE_ROOT`. The singleton stays as the default, but the parameter is plumbed through now.
+2. **Every backend endpoint takes its workspace from a header / query param**, not from a global. Today that param defaults to the single process‑wide workspace; tomorrow it gets resolved per‑request from an auth context. Concretely: prefer `GET /api/files?workspace=<id>&path=...` over a singleton `WORKSPACE_ROOT`. The singleton stays as the default, but the parameter is plumbed through now.
 3. **No filesystem paths in API responses that the browser interprets.** Return opaque IDs (`pipeline_id`, `project_id`, `file_id`) and a separate `display_path` string. The frontend never constructs an absolute path. (Today some endpoints leak `/Users/...` paths — clean these up as we touch them.)
-4. **The "kernel" is addressable.** Even though M0 has exactly one in‑process kernel, every `/api/run`, `/api/kernel/*`, `/api/data/:ref_id` call passes through a `kernel_id` (default `"local"`). M1 will swap the resolver to pick a per‑user kernel; nothing else changes.
+4. **The "kernel" is addressable.** Even though M0 has exactly one in‑process kernel, every `/api/run`, `/api/kernel/*`, `/api/data/:ref_id` call passes through a `kernel_id` (default `"local"`). M1 will swap the resolver to pick a per‑user kernel; nothing else changes. *(Note: per‑browser isolation already exists — the `ss_session` HttpOnly cookie scopes the payload store, see `session.py`. Derive `kernel_id` from that session rather than adding a second identifier.)*
 
 These four rules cost ~zero effort now and save a rewrite later. They're called out again inside the relevant phases below.
 
@@ -38,22 +44,22 @@ Everything *around* the canvas should look and feel like a Jupyter notebook open
 |------------------------------------------|--------------------------------------------------------------------|--------|
 | Workspace folder                         | `SIMPLE_STEPS_WORKSPACE` (cwd where `simple-steps` was launched)  | ✅ exists (`file_manager.py`) |
 | Explorer / file tree                     | `FileTree.tsx` in `ActivityBar`                                    | ✅ partial |
-| `.ipynb` document                        | `PipelineFile` JSON in `projects/<project>/<pipeline>.json`        | ✅ |
+| `.ipynb` document                        | `projects/<project>/<name>.simple-steps-workflow` (legacy `.json` still loads) | ✅ |
 | Notebook tabs                            | `WorkflowTabs.tsx`                                                 | ✅ |
 | Cell                                     | `StepConfig` rendered as `OperationColumn` / `StepIcon`            | ✅ |
 | Cell formula / source                    | `step.formula` (`=op.orchestrator(args)`)                          | ✅ |
-| Kernel                                   | Python interpreter running the FastAPI backend + registered packs  | ⚠️ implicit |
+| Kernel                                   | Python interpreter running the FastAPI backend + registered tools  | ⚠️ implicit |
 | Kernel picker (top‑right of notebook)    | **Missing** — no UI to select / inspect the active Python env      | ❌ |
 | Run cell / Run all                       | `runStep` / `runPipeline` in `useWorkflow`                         | ✅ |
 | Restart kernel / Clear outputs           | **Missing** — no way to reset session state without reloading      | ❌ |
 | Variable explorer                        | Step output grids (`DataOutputGrid`)                               | ✅ per‑step only |
-| Command palette (`⌘⇧P`)                  | **Missing**                                                        | ❌ |
+| Command palette (`⌘⇧P`)                  | `shell/CommandPalette.tsx` — opens, but **zero commands registered** | ⚠️ shell only |
 | Status bar (bottom)                      | **Missing**                                                        | ❌ |
 | Outline view                             | `WorkflowSequence` (horizontal step strip)                         | ✅ |
 | Chat / Copilot side panel                | `ChatSidebar` + `AgentWidget`                                      | ✅ partial |
-| Extensions / packs                       | `packs/` directory + plugin auto‑scanner                           | ✅ backend / ❌ UI |
-| Settings UI                              | **Missing** (only env vars today)                                  | ❌ |
-| Save / Save As / Recent files            | `SaveModal` + `MenuBar`                                            | ✅ partial |
+| Extensions                               | Tools + resources, shown in `SessionManager` (no packs)            | ✅ |
+| Settings UI                              | `SettingsPanel` in `Sidebar.tsx` over `GET/POST /api/settings` (`eval_mode`, `result_store`) | ✅ partial |
+| Save / Save As / Recent files            | `SaveModal` + `MenuBar` (Open Workspace / Open Recent / Close Workspace wired) | ✅ |
 
 The columns flagged ❌ / ⚠️ are the gap this plan closes.
 
@@ -64,7 +70,7 @@ The columns flagged ❌ / ⚠️ are the gap this plan closes.
 1. **The canvas is sacred.** Everything in this plan is *chrome around* `MainLayout`'s center pane. Don't change step / formula semantics.
 2. **Mirror VS Code layout exactly.** Activity bar (left rail) → Side panel → Editor area → Right panel → Status bar (bottom). Users already know this layout.
 3. **Backend owns truth, frontend mirrors it.** File system, environment info, kernel state — all expose REST endpoints; the UI is a thin reflector. (Same rule that already governs formulas.)
-4. **No hidden state.** A user must always be able to answer: *Which project? Which pipeline? Which Python env? Which pack versions? What's running right now?* — by glancing at the chrome.
+4. **No hidden state.** A user must always be able to answer: *Which project? Which pipeline? Which Python env? Which tool versions? What's running right now?* — by glancing at the chrome.
 5. **Every command has a keyboard shortcut and a command‑palette entry.** Build the palette early; register commands into it from each feature.
 
 ---
@@ -73,20 +79,20 @@ The columns flagged ❌ / ⚠️ are the gap this plan closes.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│ MenuBar     File  Edit  View  Run  Pack  Help                               │ ← exists
+│ MenuBar     File                                                            │ ← only File exists
 ├──┬───────────────┬─────────────────────────────────────────┬─────────────┬──┤
 │  │               │  WorkflowTabs:  [pipeline-a.json ×] [+] │             │  │
 │A │               ├─────────────────────────────────────────┤             │  │
 │c │  Side panel:  │  UnifiedToolbar  ▶ Run  ❚❚ Pause  ■ Stop│  Chat /     │  │
 │t │   • Explorer  │  Kernel: ⬤ Python 3.11 (.venv)         │  Agent      │  │
-│i │   • Packs     ├─────────────────────────────────────────┤  sidebar    │  │
-│v │   • Search    │                                         │             │  │
-│i │   • Run hist. │      WorkflowSequence  (step icons)     │             │  │
-│t │   • Settings  │                                         │             │  │
+│i │   • Session   ├─────────────────────────────────────────┤  sidebar    │  │
+│v │   • Docs      │                                         │             │  │
+│i │   • Settings  │      WorkflowSequence  (step icons)     │             │  │
+│t │               │                                         │             │  │
 │y │               │      OperationColumn(s) / Data grids    │             │  │
 │  │               │                                         │             │  │
 ├──┴───────────────┴─────────────────────────────────────────┴─────────────┴──┤
-│ StatusBar:  ⬤ Python 3.11  •  proj: yt‑analysis  •  3/5 steps ✓  •  saved │
+│ StatusBar:  ⬤ Python 3.11  •  proj: yt‑analysis  •  3/5 steps ✓  •  saved │ ← not built
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -104,7 +110,7 @@ Before writing any new chrome, we swap our hand‑rolled pieces for the same pri
 | **Lumino Commands** | `@lumino/commands` | A typed command registry + keybinding dispatcher. This is the exact module JupyterLab uses for `⌘⇧P`. ~200 KB, no Jupyter runtime dependencies. | Phase C1 / C4 (`services/commands.ts`, `useKeybindings`). We wrap it; our code reads as `registerCommand({...})`. |
 | **cmdk** | `cmdk` | Headless command‑palette UI (the library Vercel, Linear, Raycast use). Fuzzy search, keyboard nav, grouping — we style it to match VS Code. | Phase C3 (`CommandPalette.tsx`). Also reusable for the Phase E4 search panel. |
 | **Allotment** | `allotment` | Resizable split panes with VS Code‑identical drag behavior, persisted sizes, collapse handles. Extracted from VS Code's own splitter code. | The hand‑rolled resize logic in `MainLayout.tsx` (`isResizingSidebar`, `isResizingRightSidebar`, `isResizingHeader` — all deleted). |
-| **react‑arborist** | `react-arborist` | Virtualized tree view with keyboard nav, drag‑drop, inline rename, multi‑select. | The internals of `FileTree.tsx`. We keep our `FileEntry` shape and `/api/files/tree` backend; only the rendering swaps. |
+| **react‑arborist** | `react-arborist` | Virtualized tree view with keyboard nav, drag‑drop, inline rename, multi‑select. | The internals of `FileTree.tsx`. We keep our `FileEntry` shape and `/api/files` backend; only the rendering swaps. |
 | **VS Code Codicons** | `@vscode/codicons` | Microsoft's official VS Code icon font (MIT). 500+ icons, pixel‑identical to the editor. | Replaces Lucide icons globally. This is the single biggest visual‑parity win — most "looks like VS Code" feeling comes from this swap. |
 | **react‑aria Tabs** (or `@radix-ui/react-tabs`) | `react-aria-components` | Headless, accessible tab primitives with full keyboard support. | The internals of `WorkflowTabs.tsx` (keeps our tab data model; gains a11y + dirty‑dot affordance). |
 | **react‑jsonschema‑form** | `@rjsf/core` | Renders a settings UI directly from a JSON Schema — same pattern VS Code uses for its settings editor. | Phase E5 settings panel. We author one schema, get the form for free. |
@@ -119,12 +125,14 @@ Before writing any new chrome, we swap our hand‑rolled pieces for the same pri
 
 ### 4.3 Sprint S0 — Foundations swap (1 week, mostly deletions)
 
-**Status: ✅ COMPLETE (landed May 17 2026).** Initial JS bundle: **481 KB / gz 150 KB** (was 411 KB pre‑Monaco; would have been 4.4 MB if Monaco loaded eagerly). Monaco + react‑arborist code‑split into lazy chunks. Test baseline unchanged (80 failed / 18 passed — all failures pre‑existing backend coupling, not regressions).
+**Status: ✅ COMPLETE (landed May 17 2026).** Initial JS bundle: **481 KB / gz 150 KB** (was 411 KB pre‑Monaco; would have been 4.4 MB if Monaco loaded eagerly). Monaco + react‑arborist code‑split into lazy chunks.
+
+**Test baseline (2026‑10‑14):** backend `pytest -q` → 1 failed (the known `test_select_cell` `KeyError: 0`); frontend `npx vitest run` → 13 files / 55 tests, all passing. (The "80 failed / 18 passed" figure recorded at S0 is long obsolete.)
 
 - [x] **S0.1** Add the libraries above to `frontend/package.json`. Pin majors. *(allotment, @vscode/codicons, react-arborist, @lumino/commands, cmdk, @monaco-editor/react, monaco-editor)*
 - [x] **S0.2** Replace splitter logic in `MainLayout.tsx` with `<Allotment>` panes. Delete the three `isResizing*` refs and their mouse handlers. *(MainLayout: 659 → 608 lines)*
 - [x] **S0.3** Replace icon imports (Lucide → `@vscode/codicons`). One CSS import + a small `<Icon name="..." />` wrapper component. *(`Icon.tsx` + swaps in `ActivityBar`, `WorkflowTabs`, `UnifiedToolbar`)*
-- [x] **S0.4** Swap `FileTree.tsx` internals to `react-arborist`. Keep `FileEntry` and the `/api/files/tree` call unchanged. *(virtualized, lazy directory expansion preserved)*
+- [x] **S0.4** Swap `FileTree.tsx` internals to `react-arborist`. Keep `FileEntry` and the `/api/files` call unchanged. *(virtualized, lazy directory expansion preserved)*
 - [x] **S0.5** Stand up `services/commands.ts` wrapping `@lumino/commands` `CommandRegistry`. Export the singleton. Register **zero** commands yet — Phase C will populate it. *(plus `registerCommand` / `runCommand` / `listCommands` helpers + meta side‑table)*
 - [x] **S0.6** Stand up an empty `cmdk`‑based `CommandPalette.tsx` bound to `⌘⇧P`. Renders "no commands yet"; proves the wiring. *(mounted in `App.tsx`, click‑outside + Esc to close)*
 - [x] **S0.7** Replace the formula bar `<textarea>` in `StepToolbar.tsx` with `<MonacoEditor language="simpleSteps" />`. Register a stub language definition (keywords only) — full grammar comes later. *(Hidden‑textarea bridge in `FormulaEditor.tsx` preserves existing `StepWiringContext.injectReference` flow unchanged. Monarch grammar tokenizes `=`, operation id, `.mode`, `stepN.col` refs, params, strings, numbers, booleans.)*
@@ -142,13 +150,13 @@ Each phase is shippable on its own. Items marked **P0** are blockers for the nex
 
 Goal: behave like "File → Open Folder" in VS Code.
 
-- [ ] **A1 (P0)** Backend: `GET /api/workspace` → `{ root, name, projects: [...], recent: [...] }`. Source of truth for the chrome.
-- [ ] **A2 (P0)** Backend: `POST /api/workspace/open` accept an absolute path; persist last‑opened in `~/.simple_steps/state.json`.
-- [ ] **A3** Backend: `GET /api/files/tree?path=...` (already partially implemented) → unify on a single `FileEntry` schema (`{ name, path, kind: 'file'|'dir'|'pipeline'|'project', children? }`).
-- [ ] **A4** Frontend: `FileTree.tsx` shows project folders with a **pipeline glyph** for `.json` pipelines (vs generic files). Double‑click a pipeline → open in a new tab.
-- [ ] **A5** Frontend: `MenuBar` → `File ▸ Open Workspace…`, `File ▸ Open Recent ▸`, `File ▸ Close Workspace`. Wire to `/api/workspace/open`.
-- [ ] **A6** Frontend: dirty‑state tracking per tab; show `●` on tab title when unsaved; prompt on close.
-- [ ] **A7** Tests: `tests/test_file_manager.py` round‑trip; `MainLayout.test.tsx` open/close tab.
+- [x] **A1 (P0)** Backend: `GET /api/workspace` — returns name, project/pipeline counts, tools by tier, and `recent_workspaces`. *Still violates §0 rule 3:* it returns absolute paths (`workspace_root`, `projects_dir`, `developer_pack_dirs`) and pack‑era fields (`has_packs`, `developer_pack_dirs`). Trim to what the chrome reads.
+- [x] **A2 (P0)** Backend: `POST /api/workspace/open` — persists to `~/.simple_steps/state.json`. Returns `requires_restart: true`, because modules capture `WORKSPACE_ROOT` at import; a real in‑process switch waits for M1.
+- [ ] **A3** Backend: `GET /api/files?path=...` exists (there is no `/files/tree`). Remaining: one `FileEntry` schema with `kind: 'file'|'dir'|'pipeline'|'project'`, so the frontend stops guessing from extensions (`Sidebar.tsx` `handleExplorerFileClick` does today).
+- [ ] **A4** Frontend: a **pipeline glyph** for `.simple-steps-workflow` files. Clicking one already opens it.
+- [x] **A5** Frontend: `File ▸ Open Workspace…`, `Open Recent ▸`, `Close Workspace` — wired in `MenuBar.tsx` / `MainLayout.tsx`.
+- [x] **A6** Frontend: per‑tab `isModified`, `●` in `WorkflowTabs`, confirm on closing a dirty tab. *Bug:* tab titles are built as `${name}.json` in five places in `MainLayout.tsx`, but files save as `.simple-steps-workflow`. Drop the suffix.
+- [ ] **A7** Tests: `MainLayout.test.tsx` covers only render; add open/close tab and dirty‑dot cases. (There is no `tests/test_file_manager.py`; `tests/test_workspace_state.py` covers recents.)
 
 **Exit criteria:** Launch `simple-steps` in any directory → the explorer reflects it, double‑click loads a pipeline, ⌘S saves, dirty dot disappears.
 
@@ -158,11 +166,11 @@ Goal: behave like "File → Open Folder" in VS Code.
 
 Goal: equivalent of VS Code's "Select Kernel" button in the top‑right of a notebook.
 
-- [ ] **B1 (P0)** Backend: `GET /api/kernel` → `{ python_executable, python_version, venv_path, platform, simple_steps_version, installed_packs: [{name, version}] }`. Pull from `sys`, `importlib.metadata`, and the pack registry.
-- [ ] **B2** Backend: `POST /api/kernel/restart` → tear down in‑memory orchestration cache, re‑scan packs, return fresh `/api/kernel`. (Process stays alive; just resets state.)
+- [ ] **B1 (P0)** Backend: `GET /api/kernel` → `{ python_executable, python_version, venv_path, platform, simple_steps_version, simple_steps_core_commit }`. Pull from `sys` and `importlib.metadata` (`simple-steps --version` already resolves the commits — reuse it). Tools and resources already have `/api/operations` and `/api/resources`; don't duplicate them here.
+- [ ] **B2** Backend: `POST /api/kernel/restart` → drop this session's payload store and re‑import workspace tools, return fresh `/api/kernel`. (Process stays alive; just resets state.) **Before building:** run core to confirm its registry can be cleared and re‑populated in‑process. If it can't, that's a `SHIM(core §X)` in `core_bridge.py` plus an entry in `docs/core-proposals/003-app-adoption.md` — or cut B2 to "clear outputs" only.
 - [ ] **B3** Backend: `POST /api/kernel/clear-outputs` → drop the data‑ref cache used by `runStep`. Frontend should mark all step statuses back to `pending`.
-- [ ] **B4** Frontend: new `KernelStatus` component, top‑right of `UnifiedToolbar`. Click opens a popover with env info + actions: *Restart Kernel*, *Clear All Outputs*, *Reload Packs*.
-- [ ] **B5** Frontend: persist warning banner if backend reports a pack import failure (today these are silent).
+- [ ] **B4** Frontend: new `KernelStatus` component, top‑right of `UnifiedToolbar`. Click opens a popover with env info + actions: *Restart Kernel*, *Clear All Outputs*.
+- [ ] **B5** Frontend: persist warning banner if a workspace `tools.py` fails to import (`/api/loader` already reports per‑file results; surface them).
 - [ ] **B6** Document in `docs/system_design/09-kernel-lifecycle.md`.
 
 **Note:** We are *not* implementing multi‑kernel / kernel‑switching yet (the backend process *is* the kernel). The UI just makes that legible.
@@ -174,6 +182,8 @@ Goal: equivalent of VS Code's "Select Kernel" button in the top‑right of a not
 ### Phase C — Command Palette & Keybindings
 
 Goal: every action discoverable via `⌘⇧P`. (S0 already stood up the empty registry + palette shell; this phase populates them.)
+
+> **Decide before S3:** today `@lumino/commands` + `cmdk` + `services/commands.ts` + `CommandPalette.tsx` ship to every user and do nothing — zero commands are registered. Either do C1–C3 next, or delete the four and re‑add them when this phase starts.
 
 - [ ] **C1** Flesh out `services/commands.ts` — typed wrapper over `@lumino/commands` `CommandRegistry`:
       ```ts
@@ -198,21 +208,20 @@ Goal: persistent low‑profile feedback row, mirroring VS Code's bottom bar.
   3. Active project / pipeline.
   4. Pipeline progress (`3/5 steps ✓` while running).
   5. Save state (`saved` / `unsaved`).
-  6. Pack count (`12 packs`) → click opens Packs panel.
-- [ ] **D2** Each segment registers itself via a `useStatusItem({ id, priority, render })` hook so packs can contribute later.
+- [ ] **D2** Render the segments directly in `StatusBar.tsx`. (A `useStatusItem` registration hook existed only so packs could contribute; with no packs it's cut.)
 - [ ] **D3** Animations: spinner while a step runs; transient toast on save.
 
 ---
 
 ### Phase E — Activity Bar Panels (rounding out the left rail)
 
-`ActivityBar.tsx` exists but is sparse. Add the remaining VS Code‑style panels:
+`ActivityBar.tsx` today: Explorer, Session Manager (resources + tool registry), User Docs, Settings. The Search and Account placeholders were removed on 2026‑10‑14 — a search box that always said "No results found." was worse than none, and accounts are M1.
 
-- [ ] **E1** **Explorer** (exists) — polish: context menu (`New Pipeline`, `New Project`, `Rename`, `Delete`, `Reveal in Finder`).
-- [ ] **E2** **Packs panel** — list installed operation packs, version, source path, enable/disable toggle. Backend: `GET /api/packs`, `POST /api/packs/{id}/reload`.
+- [ ] **E1** **Explorer** — polish: context menu (`New Pipeline`, `New Project`, `Rename`, `Delete`, `Reveal in Finder`).
+- ~~**E2** Packs panel~~ — **cut.** No packs; the Session Manager panel already lists tools and resources.
 - [ ] **E3** **Run history panel** — chronological list of step runs from `ExecutionLog`, persisted to `~/.simple_steps/history.jsonl`. Click an entry → jump to the step.
-- [ ] **E4** **Search panel** — full‑text search across pipelines in the workspace (`grep` over JSON, surface matching step labels / formulas).
-- [ ] **E5** **Settings panel** — UI over a `~/.simple_steps/settings.json`: theme, autosave, default orchestrator, agent enabled, telemetry off.
+- [ ] **E4** **Search panel** — full‑text search across workflows in the workspace (step labels / formulas). Re‑add the activity‑bar entry when this lands.
+- [ ] **E5** **Settings panel** — exists over `GET/POST /api/settings` (`eval_mode`, `result_store`). Add fields only as features need them (autosave when F1 lands); don't pre‑build theme/telemetry toggles.
 
 ---
 
@@ -225,7 +234,7 @@ Goal: every notebook UX expectation that's still missing.
 - [ ] **F3** **Move step** (drag in `WorkflowSequence`) + `Cells ▸ Move Up/Down` commands.
 - [ ] **F4** **Run from here / Run above** commands on step right‑click.
 - [ ] **F5** **Export** menu: `Export as Python script` (already partially supported via the formula→Python mapping — finalize), `Export as JSON`, `Export step outputs as CSV`.
-- [ ] **F6** **Untitled pipeline** on launch (no project required), same as Jupyter's `Untitled.ipynb`. Prompted to save on first run.
+- [ ] **F6** **Untitled pipeline** on launch — mostly there: the app opens on an unsaved "New Workflow" tab with no project. Remaining: prompt to save on first run.
 
 ---
 
@@ -248,63 +257,55 @@ Goal: every notebook UX expectation that's still missing.
 
 ---
 
-## 5. Backend API Additions (summary)
+## 6. Backend API (summary)
 
-| Endpoint                              | Method | Purpose                                      | Phase |
-|---------------------------------------|--------|----------------------------------------------|-------|
-| `/api/workspace`                      | GET    | Current workspace + recents                  | A     |
-| `/api/workspace/open`                 | POST   | Switch workspace root                        | A     |
-| `/api/files/tree`                     | GET    | Unified file tree                            | A     |
-| `/api/kernel`                         | GET    | Env + pack info                              | B     |
-| `/api/kernel/restart`                 | POST   | Reset in‑process caches                      | B     |
-| `/api/kernel/clear-outputs`           | POST   | Drop data‑ref cache                          | B     |
-| `/api/packs`                          | GET    | Installed packs                              | E     |
-| `/api/packs/{id}/reload`              | POST   | Re‑scan a single pack                        | E     |
-| `/api/settings`                       | GET/PUT| User settings                                | E     |
-| `/api/history`                        | GET    | Run history                                  | E     |
-| `/api/search`                         | GET    | Search across pipelines                      | E     |
+| Endpoint                              | Method | Purpose                                      | Phase | Status |
+|---------------------------------------|--------|----------------------------------------------|-------|--------|
+| `/api/workspace`                      | GET    | Current workspace + recents                  | A     | ✅ (trim absolute paths) |
+| `/api/workspace/open`                 | POST   | Record workspace; `requires_restart`         | A     | ✅ |
+| `/api/files`                          | GET    | Directory listing                            | A     | ✅ (schema not unified) |
+| `/api/settings`                       | GET/POST | Runtime settings                           | E     | ✅ |
+| `/api/kernel`                         | GET    | Env info                                     | B     | ❌ |
+| `/api/kernel/restart`                 | POST   | Reset in‑process caches                      | B     | ❌ (verify against core first) |
+| `/api/kernel/clear-outputs`           | POST   | Drop data‑ref cache                          | B     | ❌ |
+| `/api/history`                        | GET    | Run history                                  | E     | ❌ |
+| `/api/search`                         | GET    | Search across workflows                      | E     | ❌ |
 
 All new endpoints get Pydantic v2 models in `src/SIMPLE_STEPS/models.py` and tests in `tests/`.
 
 ---
 
-## 6. Frontend Module Plan
+## 7. Frontend Module Plan
+
+Add files only when the phase that needs them starts. Workspace and settings
+calls already live in `services/api.ts` and `MainLayout.tsx` state; don't split
+them out into new services/contexts just to match a diagram.
 
 ```
 frontend/src/
-├── shell/                       ← NEW — everything that is *not* the canvas
-│   ├── CommandPalette.tsx
-│   ├── KernelStatus.tsx
-│   ├── StatusBar.tsx
-│   ├── PacksPanel.tsx
-│   ├── RunHistoryPanel.tsx
-│   ├── SearchPanel.tsx
-│   └── SettingsPanel.tsx
-├── services/
-│   ├── commands.ts              ← NEW command registry
-│   ├── keybindings.ts           ← NEW
-│   ├── workspace.ts             ← NEW (wraps /api/workspace*)
-│   └── kernel.ts                ← NEW (wraps /api/kernel*)
-├── context/
-│   ├── WorkspaceContext.tsx     ← NEW (single source of workspace state)
-│   └── KernelContext.tsx        ← NEW
-└── hooks/
-    └── useStatusItem.ts         ← NEW
+├── shell/
+│   ├── CommandPalette.tsx       ← exists (empty until Phase C)
+│   ├── KernelStatus.tsx         ← Phase B
+│   ├── StatusBar.tsx            ← Phase D
+│   ├── RunHistoryPanel.tsx      ← Phase E3
+│   └── SearchPanel.tsx          ← Phase E4
+└── services/
+    └── commands.ts              ← exists (empty until Phase C)
 ```
 
-Existing components stay where they are; the canvas is unchanged.
+`SettingsPanel` and `DocsPanel` live inside `components/Sidebar.tsx`. The canvas is unchanged.
 
 ---
 
-## 7. Milestones / Sequencing
+## 8. Milestones / Sequencing
 
 | Sprint | Phases   | Deliverable                                                      |
 |--------|----------|------------------------------------------------------------------|
-| S0     | §4.3     | Adopt primitives (Monaco, Lumino cmds, cmdk, Allotment, codicons, react‑arborist). Net deletion. |
-| S1     | A1–A5    | Open any folder as a workspace; explorer + tabs round‑trip       |
-| S2     | A6–A7, B | Kernel status visible + restartable; dirty‑state correct         |
+| S0 ✅  | §4.3     | Adopt primitives (Monaco, Lumino cmds, cmdk, Allotment, codicons, react‑arborist). Net deletion. |
+| S1 ✅  | A1, A2, A5, A6 | Open any folder as a workspace; explorer + tabs round‑trip; dirty dot |
+| S2     | A3, A4, A7, B | Kernel status visible + restartable; file schema unified    |
 | S3     | C, D     | Command palette, keybindings, status bar live                    |
-| S4     | E        | Packs / History / Search / Settings panels                       |
+| S4     | E        | History / Search panels; Explorer context menu                   |
 | S5     | F        | Autosave, undo, move, export — notebook lifecycle complete       |
 | S6     | G, H     | Agent polish + multi‑tab hardening                               |
 
@@ -312,7 +313,7 @@ Two‑week sprints (S0 is a one‑week sprint) → ~13 weeks to land the whole s
 
 ---
 
-## 8. Definition of Done (for the whole plan)
+## 9. Definition of Done (for the whole plan)
 
 A new user who has used Jupyter inside VS Code can:
 
@@ -320,14 +321,14 @@ A new user who has used Jupyter inside VS Code can:
 2. Open a pipeline in a tab; see kernel info top‑right and status bar bottom.
 3. Run a step / all steps / restart kernel / clear outputs — by mouse, menu, palette, **and** keyboard.
 4. Save, save‑as, open recent, undo, move steps, export to `.py`.
-5. Browse installed operation packs and run history without leaving the app.
+5. Browse registered tools, resources and run history without leaving the app.
 6. Ask the agent to suggest or fix a step; accept its diff into the formula bar.
 
-When all six are true, the infrastructure is done and feature work can return to the canvas itself (formula grammar, shape vocabulary, decoration system — see `dev_notes/`).
+When all six are true, the infrastructure is done and feature work can return to the canvas itself (formula grammar, shape vocabulary, decoration system — see `docs/dev_plan/1xx`).
 
 ---
 
-## 9. Open Questions
+## 10. Open Questions
 
 1. **Multiple kernels?** Today the backend process *is* the kernel. Do we ever want to run two Python envs side‑by‑side (e.g. a `pandas 1.x` pipeline next to a `pandas 2.x` one)? If yes, Phase B grows substantially. **Recommendation:** punt until post‑S6.
 2. **Hosted multi‑user (M1).** Covered in §0. Out of scope for this plan; the four forward‑compat rules in §0 are the only work we do now toward it. When we *do* tackle M1, the additional sprints needed are: per‑user auth (likely OAuth via the existing FastAPI app), per‑user kernel processes (one `uvicorn` worker per user or a kernel‑manager process pool), workspace isolation (chroot‑style path scoping in `file_manager.py`), and websocket migration for `runStep` progress events.
@@ -336,9 +337,9 @@ When all six are true, the infrastructure is done and feature work can return to
 
 ---
 
-## 10. References
+## 11. References
 
 - `docs/system_design/06-frontend-architecture.md` — current component tree
 - `docs/system_design/08-pipeline-persistence.md` — file format
 - `docs/dev_plan/100-architecture.md` — canvas architecture (unchanged by this plan)
-- `dev_notes/scaling_notes.md` — performance considerations once shell is in place
+- `docs/cleanup-map.md` — what was removed (including packs) and why
