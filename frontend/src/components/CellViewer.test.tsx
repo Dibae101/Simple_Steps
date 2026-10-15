@@ -3,12 +3,14 @@
  * than text shows its preview or summary in the grid; clicking it opens the
  * full view, fetched separately; wiring mode never opens it.
  */
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Cell } from '../types/models';
 import type { CellView } from '../services/api';
 import DataOutputGrid from './DataOutputGrid';
 import CellViewer from './CellViewer';
+import CellPanelHost from './CellPanelHost';
+import { closeCellPanel } from '../services/cellPanels';
 
 const views: Record<string, CellView> = {
   img: { cell_type: 'image', summary: '16×16 RGB image',
@@ -70,9 +72,10 @@ describe('CellViewer', () => {
     render(<CellViewer refId="r" row={0} column={column} onClose={() => {}} />);
 
   it('shows an image at full size', async () => {
-    const { container } = open('img');
-    await waitFor(() => expect(container.querySelector('img.cv-image')).not.toBeNull());
-    expect(container.querySelector('img.cv-image')!.getAttribute('src')).toBe('data:image/png;base64,AAAA');
+    open('img');
+    // The viewer is portalled to <body>, outside the render container.
+    await waitFor(() => expect(document.querySelector('img.cv-image')).not.toBeNull());
+    expect(document.querySelector('img.cv-image')!.getAttribute('src')).toBe('data:image/png;base64,AAAA');
   });
 
   it('draws a Plotly figure with plotly.js, loaded only when needed', async () => {
@@ -92,5 +95,64 @@ describe('CellViewer', () => {
     open('obj');
     expect(await screen.findByText('"SF"')).toBeInTheDocument();
     expect(screen.getByText('[2 items]')).toBeInTheDocument();
+  });
+});
+
+describe('cell window controls', () => {
+  // The panel store is app-wide; start every test with none open.
+  afterEach(() => {
+    for (const id of ['r:0:chart', 'r:0:img']) act(() => closeCellPanel(id));
+  });
+
+  const openModal = (onClose = vi.fn()) => {
+    render(<><CellViewer refId="r" row={0} column="chart" onClose={onClose} /><CellPanelHost /></>);
+    return onClose;
+  };
+
+  it('expands to the whole window and restores', () => {
+    openModal();
+    fireEvent.click(screen.getByLabelText('Expand'));
+    expect(document.querySelector('.cv-panel.cv-maximized')).not.toBeNull();
+    fireEvent.click(screen.getByLabelText('Restore'));
+    expect(document.querySelector('.cv-panel.cv-maximized')).toBeNull();
+  });
+
+  it('pops out into its own panel and closes the modal view', () => {
+    const onClose = openModal();
+    fireEvent.click(screen.getByLabelText('Pop out'));
+    expect(onClose).toHaveBeenCalled();
+    const panel = document.querySelector('.cv-panel.cv-floating');
+    expect(panel).not.toBeNull();
+    // A panel has no backdrop, so the app behind it stays usable.
+    expect(panel!.closest('.cv-backdrop')).toBeNull();
+  });
+
+  it('minimizing the modal view pops it out minimized, never leaving a backdrop', () => {
+    openModal();
+    fireEvent.click(screen.getByLabelText('Minimize'));
+    expect(document.querySelector('.cv-floating.cv-minimized')).not.toBeNull();
+    expect(document.querySelector('.cv-floating .cv-body')!.hasAttribute('hidden')).toBe(true);
+  });
+
+  it('a panel minimizes and restores in place, ignores Esc, and closes with ×', () => {
+    openModal();
+    fireEvent.click(screen.getByLabelText('Pop out'));
+    const panel = () => document.querySelector('.cv-floating');
+    fireEvent.click(panel()!.querySelector('[aria-label="Minimize"]')!);
+    expect(panel()!.classList.contains('cv-minimized')).toBe(true);
+    fireEvent.click(panel()!.querySelector('[aria-label="Restore"]')!);
+    expect(panel()!.classList.contains('cv-minimized')).toBe(false);
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(panel()).not.toBeNull();
+    fireEvent.click(panel()!.querySelector('[aria-label="Close"]')!);
+    expect(panel()).toBeNull();
+  });
+
+  it('popping the same cell out twice is one panel', () => {
+    openModal();
+    fireEvent.click(screen.getByLabelText('Pop out'));
+    render(<CellViewer refId="r" row={0} column="chart" onClose={() => {}} />);
+    fireEvent.click(screen.getAllByLabelText('Pop out')[0]);
+    expect(document.querySelectorAll('.cv-floating')).toHaveLength(1);
   });
 });

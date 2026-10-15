@@ -1,6 +1,7 @@
 import './App.css'
 import MainLayout from './components/MainLayout'
 import CommandPalette from './shell/CommandPalette'
+import CellPanelHost from './components/CellPanelHost'
 import { ConsoleProvider } from './context/ConsoleContext'
 
 // The session cookie is minted by the toolbar's connection check
@@ -10,6 +11,7 @@ function App() {
     <ConsoleProvider>
       <MainLayout />
       <CommandPalette />
+      <CellPanelHost />
     </ConsoleProvider>
   )
 }

@@ -44,18 +44,82 @@
   white-space: nowrap;
 }
 
-.cv-close {
+/* Corner controls: minimize, expand / restore, pop out, close. */
+.cv-controls {
+  display: flex;
+  gap: 2px;
   margin-left: auto;
+  flex-shrink: 0;
+}
+
+.cv-control {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 22px;
+  padding: 0;
   background: none;
   border: none;
+  border-radius: 4px;
   color: #999;
-  font-size: 1.3rem;
-  line-height: 1;
   cursor: pointer;
 }
 
-.cv-close:hover {
-  color: #fff;
+.cv-control:hover { background: #333; color: #fff; }
+.cv-control.cv-close:hover { background: #c42b1c; color: #fff; }
+.cv-control:focus:not(:focus-visible) { outline: none; }
+
+.cv-header.cv-draggable { cursor: grab; user-select: none; }
+.cv-header.cv-draggable:active { cursor: grabbing; }
+
+/* Expanded: the whole window, modal or popped out. */
+.cv-panel.cv-maximized {
+  position: fixed;
+  inset: 12px;
+  width: auto;
+  max-height: none;
+}
+
+/* Popped out: its own panel, no backdrop, resized from its corner. */
+.cv-panel.cv-floating {
+  position: fixed;
+  width: 640px;
+  height: 460px;
+  min-width: 280px;
+  min-height: 160px;
+  max-height: none;
+  resize: both;
+  overflow: hidden;
+}
+
+.cv-panel.cv-floating.cv-maximized {
+  inset: 12px;
+  width: auto;
+  height: auto;
+  resize: none;
+}
+
+.cv-panel.cv-minimized {
+  height: auto;
+  min-height: 0;
+  width: 300px;
+  resize: none;
+}
+
+.cv-minimized .cv-header { border-bottom: none; padding: 6px 10px; }
+
+/* With a size of its own, the body fills it and a chart grows with it. */
+.cv-floating .cv-body,
+.cv-maximized .cv-body {
+  flex: 1;
+  min-height: 0;
+}
+
+.cv-floating .cv-plotly,
+.cv-maximized .cv-plotly {
+  height: 100%;
+  min-height: 0;
 }
 
 .cv-body {
