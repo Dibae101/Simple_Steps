@@ -20,7 +20,50 @@ export interface ParsedFormula {
   error?: string;
   /** Set for a formula in core's syntax: the core operation it compiles to. */
   operation?: Record<string, unknown>;
+  /** Set for a formula in core's syntax: the formula as the step editor edits it. */
+  parts?: FormulaParts;
   rawInput: string;
+}
+
+/** A tool argument: a literal, another step's value, or a resource. */
+export type ArgValue = unknown | { $ref: string } | { $res: string };
+
+/** One modifier as written, e.g. `mod.map(name="score")`. */
+export interface ModifierPart {
+  kind: string;
+  params: Record<string, unknown>;
+}
+
+/**
+ * A formula in core's syntax, split the way the step editor shows it
+ * (`operation_formula.to_parts`). Modifiers are in written order — left to
+ * right in the formula, top to bottom in the editor.
+ */
+export interface FormulaParts {
+  tool: string;
+  /** For `res["db"].lookup`: the resource the tool is bound to. */
+  bound_to: string | null;
+  /** `null` when there are no brackets: the verb is inferred from the tool. */
+  modifiers: ModifierPart[] | null;
+  /** The step it reads, `wf["…"]`; `null` for a source or sweep. */
+  input: string | null;
+  /** Resources passed by position, `res["…"]`. */
+  resources: string[];
+  arguments: Record<string, ArgValue>;
+  /** Set for a combine (`join` / `stack` / `zip`): every step it reads. */
+  inputs: string[];
+}
+
+/** Write parts as a formula. Throws with the reason if they make no valid step. */
+export async function formatFormula(parts: FormulaParts): Promise<{ formula: string; parsed: ParsedFormula }> {
+  const resp = await fetch(`${API_BASE}/format_formula`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ parts }),
+  });
+  const body = await resp.json();
+  if (!resp.ok) throw new Error(typeof body.detail === 'string' ? body.detail : 'invalid step');
+  return body;
 }
 
 

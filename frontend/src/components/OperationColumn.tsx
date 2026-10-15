@@ -7,9 +7,9 @@ import StepToolbar from './StepToolbar';
 import PreviousStepDataPicker from './PreviousStepDataPicker';
 import { applyPick, parseSelectionFormula, selectionFormula, selectStepName, stepRef } from '../utils/selection';
 import type { GridPick, Selection } from '../utils/selection';
-import { buildFormula, parseFormula } from '../utils/formulaParser';
-import type { ParsedFormula, OrchestrationMode } from '../utils/formulaParser';
-import OrchestrationControl from './OrchestrationControl';
+import { parseFormula } from '../utils/formulaParser';
+import type { ParsedFormula } from '../utils/formulaParser';
+import ToolEditor from './ToolEditor';
 import StepWidget from './StepWidget';
 import type { PanelId } from './stepPanels';
 import StepOverview from './StepOverview';
@@ -100,7 +100,7 @@ export default function OperationColumn({
   const [isLocked, setIsLocked] = useState(false);
 
   // Wiring context — this column is a wiring SOURCE when a later step's formula is focused
-  const { wiringState, activateWiring, deactivateWiring, pickFrom, setActiveSelection } = useStepWiring();
+  const { wiringState, activateWiring, pickFrom, setActiveSelection } = useStepWiring();
   const isWiringSource =
     wiringState.receivingStepId !== null &&
     wiringState.receivingStepId !== step.id &&
@@ -112,7 +112,6 @@ export default function OperationColumn({
   const [isWiringHovered, setIsWiringHovered] = useState(false);
 
   // Refs for parameter inputs so they can also participate in wiring
-  const paramInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   // Ref to the formula bar input — forwarded from StepToolbar so the
   // PreviousStepDataPicker can focus + activate wiring without losing context.
@@ -197,42 +196,23 @@ export default function OperationColumn({
     insertAtCursor(stepRef(name));
   };
 
-  // The formula bar always reflects step.formula (the canonical field).
-  // buildFormula is only used as a fallback for legacy steps that predate
-  // the formula field (i.e. loaded from old save files without a formula).
-  // With the backend model_validator fix, step.formula should always be set,
-  // but we keep this client-side fallback for resilience.
-  const currentOp = availableOperations.find(op => op.id === step.process_type);
-  const hasParams = currentOp && currentOp.params && currentOp.params.length > 0;
+  // The formula bar always reflects step.formula (the canonical field);
+  // useWorkflow fills it in for legacy steps saved without one.
+  const savedFormula = step.formula || step.operation || '';
 
-  // `derivedFormula` is async because buildFormula() round-trips to the backend
-  // for legacy steps without a saved formula. We cache the result in state and
-  // recompute whenever the inputs change.
-  const [derivedFormula, setDerivedFormula] = useState<string>(step.formula || '');
+  // What the step editor shows: the formula as last committed — Enter in the
+  // formula bar, the editor's own write, or a change from outside (a load, the
+  // agent). Not every keystroke: a half-typed formula would flash a warning.
+  const [editorFormula, setEditorFormula] = useState(savedFormula);
+  const lastTyped = useRef<string | null>(null);
   useEffect(() => {
-    let cancelled = false;
-    if (step.formula) {
-      setDerivedFormula(step.formula);
-      return;
-    }
-    (async () => {
-      const f = await buildFormula(
-        step.process_type,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        step.configuration as Record<string, any>,
-        (step.configuration._orchestrator as OrchestrationMode | undefined)
-          ?? (currentOp?.type as OrchestrationMode | undefined)
-          ?? null,
-      );
-      if (!cancelled) setDerivedFormula(f);
-    })();
-    return () => { cancelled = true; };
-  }, [step.formula, step.process_type, step.configuration, currentOp?.type]);
+    if (savedFormula !== lastTyped.current) setEditorFormula(savedFormula);
+  }, [savedFormula]);
 
   // ── Staged preview state ───────────────────────────────────────────────────
   // Track what the user is typing live — separate from committed step.formula
-  // Prefer step.formula first, then derivedFormula, then legacy operation field.
-  const [liveFormula, setLiveFormula] = useState<string>(step.formula || derivedFormula || step.operation || '');
+  // Starts from the saved formula; follows every keystroke from then on.
+  const [liveFormula, setLiveFormula] = useState<string>(savedFormula);
 
   // While this step's formula bar is the one receiving picks, tell the source
   // grids what it selects, so the selected columns / rows stay highlighted.
@@ -246,9 +226,8 @@ export default function OperationColumn({
 
   // Keep liveFormula in sync when the step is updated externally.
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setLiveFormula(step.formula || derivedFormula || step.operation || '');
-  }, [step.formula, step.operation, derivedFormula]);
+    setLiveFormula(savedFormula);
+  }, [savedFormula]);
 
   // Parse the live formula so the staged preview hook gets a typed ParsedFormula.
   // parseFormula is async (it round-trips to the backend) so we cache the result
@@ -307,7 +286,7 @@ export default function OperationColumn({
     liveFormula !== '' &&
     (step.status === 'pending' ||
       step.status === 'stopped' ||
-      liveFormula !== (step.formula ?? step.operation ?? ''));
+      liveFormula !== savedFormula);
 
   const isScheduledInPipeline =
     pipelineStatus === 'running' &&
@@ -344,26 +323,10 @@ export default function OperationColumn({
     step.status === 'running' ||
     isScheduledInPipeline;
 
-  // Handler for UI-based updates (Dropdowns/Inputs in the Details tab)
-  // The UI form writes to the formula FIRST; process_type and configuration
-  // are derived from the formula and kept in sync.
-  const handleUiUpdate = async (updates: Partial<Step>) => {
-    const newOpId = updates.process_type !== undefined ? updates.process_type : step.process_type;
-    const newConfig = updates.configuration !== undefined ? updates.configuration : step.configuration;
-    // Preserve the orchestration modifier already in the formula if no config override
-    const existingParsed = step.formula ? await parseFormula(step.formula) : null;
-    const orchMode = (newConfig._orchestrator as import('../utils/formulaParser').OrchestrationMode | undefined)
-      ?? existingParsed?.orchestration
-      ?? currentOp?.type as import('../utils/formulaParser').OrchestrationMode | undefined
-      ?? null;
-    const newFormula = await buildFormula(newOpId, newConfig, orchMode);
-    setLiveFormula(newFormula); // keep staged preview in sync
-    onUpdate?.(step.id, { ...updates, formula: newFormula, operation: newFormula });
-  };
-
   // Handler for Formula-based updates (Toolbar Input)
   // The formula bar is the canonical write path. Everything else is derived from it.
   const handleFormulaUpdate = (_id: string, formula: string, parsed: ParsedFormula) => {
+    lastTyped.current = formula;
     setLiveFormula(formula); // immediately drive staged preview
     if (parsed.isValid && parsed.operationId) {
       // Preserve internal keys (e.g. _orchestrator) that aren't in the formula.
@@ -389,18 +352,9 @@ export default function OperationColumn({
         operation: formula,
         process_type: parsed.operationId,
       });
-    } else if (formula && !formula.startsWith('=')) {
-      // Bare reference token (e.g. "step-abc.url") — pass-through mode.
-      const internalKeys = Object.fromEntries(
-        Object.entries(step.configuration).filter(([k]) => k.startsWith('_') && k !== '_ref')
-      );
-      onUpdate?.(step.id, {
-        formula,
-        operation: formula,
-        process_type: 'passthrough',
-        configuration: { ...internalKeys, _ref: formula },
-      });
     } else {
+      // A valid bare reference parses as `passthrough` and is handled above;
+      // anything reaching here is half-typed, whether or not it starts with '='.
       // Incomplete / plain text — just keep the raw string
       onUpdate?.(step.id, { formula, operation: formula });
     }
@@ -544,7 +498,8 @@ export default function OperationColumn({
               openPanels={openPanels}
               onTogglePanel={togglePanel}
               onFormulaChange={handleFormulaUpdate}
-              externalFormula={derivedFormula}
+              externalFormula={savedFormula}
+              onFormulaCommit={setEditorFormula}
               isLocked={isLocked}
               onLock={() => setIsLocked(!isLocked)}
               onFormulaBarRef={(el) => { formulaBarRef.current = el; }}
@@ -596,31 +551,17 @@ export default function OperationColumn({
                 <StepWidget id="details" collapsed={collapsedPanels.has('details')} onToggleCollapse={toggleCollapsed} background="#ebf5fb" maxHeight={widgetMaxHeight}>
                   <div className="tab-content details-content">
                     <div className="expander-inner" onClick={(e) => e.stopPropagation()}>
-                      {/* Operation Selector */}
-                      <div className="config-item">
-                        <label>Operation:</label>
-                        <select 
-                            value={step.process_type} 
-                            onChange={(e) => {
-                                const newOpId = e.target.value;
-                                handleUiUpdate({ 
-                                    process_type: newOpId,
-                                    configuration: {} 
-                                });
-                            }}
-                            disabled={!isActive}
-                        >
-                            <option value="noop">Select Operation...</option>
-                            <option value="passthrough" disabled style={{ color: '#aaa' }}>
-                              ↳ Pass-through (reference selected)
-                            </option>
-                            {availableOperations.map(op => (
-                                <option key={op.id} value={op.id}>
-                                  {op.category ? `[${op.category}] ` : ''}{op.label}
-                                </option>
-                            ))}
-                        </select>
-                      </div>
+                      {/* The formula as a form: Tool ▸ Parameters / Modifiers. */}
+                      <ToolEditor
+                        formula={editorFormula}
+                        availableOperations={availableOperations}
+                        previousSteps={previousSteps.map((s) => s.label)}
+                        onChange={(formula, parsed) => {
+                          setEditorFormula(formula);
+                          handleFormulaUpdate(step.id, formula, parsed);
+                          onPreview?.(step.id);
+                        }}
+                      />
 
                       {/* Previous Step Data Picker — always visible in details tab when
                           prior steps exist. Lets the user click a column/cell reference
@@ -636,116 +577,6 @@ export default function OperationColumn({
                         />
                       )}
 
-                      {/* Orchestration: core's verb for this tool, and its settings */}
-                      {currentOp && currentOp.type !== 'verb' && (
-                        <OrchestrationControl
-                          configuration={step.configuration}
-                          defaultType={currentOp.type}
-                          onChange={(newConfig) => handleUiUpdate({ configuration: newConfig })}
-                        />
-                      )}
-                      
-                      {/* Parameters */}
-                      {hasParams && (
-                        <div style={{ marginTop: '12px' }}>
-                          <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#666', textTransform: 'uppercase' }}>Parameters</span>
-                          {currentOp?.params.map(param => {
-                            const paramVal = String(step.configuration[param.name] ?? (param.default || ''));
-                            const isWiredValue = paramVal.includes('.');
-                            return (
-                            <div key={param.name} className="config-item">
-                              <label title={param.description}>{param.name}:</label>
-                              <div style={{ position: 'relative', flex: 1 }}>
-                                {/* A parameter annotated Literal[...] carries its allowed
-                                    values, so it gets a dropdown instead of a free-text box
-                                    and a typo can no longer reach the engine. The current
-                                    value is kept as an extra option when it is not one of
-                                    them — a wired reference or a value from an older save
-                                    must never be silently replaced. */}
-                                {param.options && param.options.length > 0 ? (
-                                  <select
-                                    value={paramVal}
-                                    title={param.description}
-                                    onChange={(e) => {
-                                      handleUiUpdate({
-                                        configuration: { ...step.configuration, [param.name]: e.target.value },
-                                      });
-                                      onPreview?.(step.id);
-                                    }}
-                                    style={{ width: '100%', boxSizing: 'border-box' }}
-                                  >
-                                    {!param.options.map(String).includes(paramVal) && (
-                                      <option value={paramVal}>
-                                        {paramVal === '' ? '— choose —' : `${paramVal} (not a valid choice)`}
-                                      </option>
-                                    )}
-                                    {param.options.map((opt) => (
-                                      <option key={String(opt)} value={String(opt)}>{String(opt)}</option>
-                                    ))}
-                                  </select>
-                                ) : (
-                                <input
-                                    ref={(el) => { paramInputRefs.current[param.name] = el; }}
-                                    type="text"
-                                    value={paramVal}
-                                    onChange={(e) => {
-                                        const val = e.target.value;
-                                        const isFormula = val.startsWith('=');
-                                        const updateVal = (param.type === 'number' && !isFormula) ? Number(val) : val;
-                                        handleUiUpdate({
-                                            configuration: { ...step.configuration, [param.name]: updateVal }
-                                        });
-                                    }}
-                                    onFocus={() => {
-                                      const el = paramInputRefs.current[param.name];
-                                      if (el) {
-                                        activateWiring(
-                                          step.id,
-                                          stepIndex,
-                                          { current: el } as React.RefObject<HTMLInputElement>
-                                        );
-                                      }
-                                    }}
-                                    onBlur={() => {
-                                      deactivateWiring();
-                                      onPreview?.(step.id);
-                                    }}
-                                    onKeyDown={(e) => { if (e.key === 'Enter') onPreview?.(step.id); }}
-                                    title={param.description}
-                                    placeholder={String(param.default || '')}
-                                    style={{
-                                      width: '100%',
-                                      boxSizing: 'border-box',
-                                      ...(isWiredValue ? {
-                                        background: '#fffde7',
-                                        borderColor: '#ffc107',
-                                        color: '#856404',
-                                      } : {}),
-                                    }}
-                                />
-                                )}
-                                {isWiredValue && (
-                                  <span
-                                    title="This parameter references another step's output"
-                                    style={{
-                                      position: 'absolute',
-                                      right: 4,
-                                      top: '50%',
-                                      transform: 'translateY(-50%)',
-                                      fontSize: '0.65rem',
-                                      color: '#ffa000',
-                                      pointerEvents: 'none',
-                                    }}
-                                  >
-                                    ⚡
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                            );
-                          })}
-                        </div>
-                      )}
                     </div>
                   </div>
               </StepWidget>

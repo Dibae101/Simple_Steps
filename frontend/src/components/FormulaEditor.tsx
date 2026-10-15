@@ -40,7 +40,7 @@
  *     the visible caret).
  */
 
-import { useEffect, useRef, useState, forwardRef, useImperativeHandle } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, forwardRef, useImperativeHandle } from 'react';
 import Editor, { type OnMount } from '@monaco-editor/react';
 import type * as Monaco from 'monaco-editor';
 import { SIMPLE_STEPS_LANGUAGE_ID } from '../shell/monacoSetup';
@@ -91,6 +91,11 @@ const FormulaEditor = forwardRef<FormulaEditorRef, FormulaEditorProps>(function 
   // imperatively, the next render would switch it straight back off.
   const [focused, setFocused] = useState(false);
   const focusedRef = useRef(false);
+  // Monaco's listeners are registered once, at mount. Calling the props
+  // directly would run the FIRST render's handlers forever — and with them the
+  // step as it was then. Route them through a ref that tracks every render.
+  const handlers = useRef({ onChange, onEnter, onFocus, onBlur });
+  useLayoutEffect(() => { handlers.current = { onChange, onEnter, onFocus, onBlur }; });
 
   // Expose imperative API.
   useImperativeHandle(ref, () => ({
@@ -144,7 +149,7 @@ const FormulaEditor = forwardRef<FormulaEditorRef, FormulaEditorProps>(function 
         syncingRef.current = false;
       }
 
-      onChange(next);
+      handlers.current.onChange(next);
     });
 
     // Keep shadow textarea's selection synced with Monaco's caret so any
@@ -173,7 +178,7 @@ const FormulaEditor = forwardRef<FormulaEditorRef, FormulaEditorProps>(function 
       // monaco.KeyCode.Enter = 3
       3,
       () => {
-        onEnter?.();
+        handlers.current.onEnter?.();
       },
     );
 
@@ -189,7 +194,7 @@ const FormulaEditor = forwardRef<FormulaEditorRef, FormulaEditorProps>(function 
     editor.onDidFocusEditorText(() => {
       focusedRef.current = true;
       setFocused(true);            // wraps; the content-size event then fits the height
-      onFocus?.();
+      handlers.current.onFocus?.();
     });
     editor.onDidBlurEditorText(() => {
       focusedRef.current = false;
@@ -197,7 +202,7 @@ const FormulaEditor = forwardRef<FormulaEditorRef, FormulaEditorProps>(function 
       setHeight(COLLAPSED_HEIGHT);
       // Show the start of the formula — the tool and its verb — when collapsed.
       editor.setScrollPosition({ scrollTop: 0, scrollLeft: 0 });
-      onBlur?.();
+      handlers.current.onBlur?.();
     });
   };
 

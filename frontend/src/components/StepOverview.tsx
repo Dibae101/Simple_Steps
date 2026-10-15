@@ -20,7 +20,7 @@ export default function StepOverview({ step, availableOperations }: {
         <span className="sop-key">Step</span>
         <span className="sop-val">{step.label}</span>
 
-        <span className="sop-key">Operation</span>
+        <span className="sop-key">Tool</span>
         <span className="sop-val">{opLabel}</span>
 
         <span className="sop-key">Status</span>

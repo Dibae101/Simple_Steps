@@ -273,6 +273,20 @@ async def api_build_formula(payload: dict = Body(...)):
     orchestration = payload.get("orchestration")
     formula = build_formula(operation_id, config, orchestration)
     return {"formula": formula}
+
+
+@app.post("/api/format_formula")
+async def api_format_formula(payload: dict = Body(...)):
+    """The step editor's parts (see ``operation_formula.to_parts``) written as a
+    formula in core's syntax, with that formula parsed — so the editor and the
+    formula bar update from one answer. 400 with the reason if the parts don't
+    make a valid step."""
+    from .operation_formula import FormulaError, format_parts
+    try:
+        formula = format_parts(payload.get("parts") or {})
+    except FormulaError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return {"formula": formula, "parsed": parse_formula(formula).as_dict()}
 # --- Middleware ---
 # Allow any localhost port so multiple Simple Steps instances can co-exist
 # (Streamlit-style port auto-increment means we may run on :8001, :8002, etc.)

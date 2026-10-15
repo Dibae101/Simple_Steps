@@ -8,7 +8,6 @@ vi.mock('../services/api', async (importOriginal) => ({
   getOperations: vi.fn().mockResolvedValue([]),
   runStep: vi.fn().mockResolvedValue({ ref_id: 'mock-ref', metrics: {} }),
   fetchDataView: vi.fn().mockResolvedValue({ cells: [] }),
-  checkBackendStatus: vi.fn().mockResolvedValue(true),
   saveWorkflow: vi.fn().mockResolvedValue({ id: 'mock-id' }),
   loadWorkflow: vi.fn().mockResolvedValue({ id: 'wf', name: 'Test', steps: [] }),
   listProjects: vi.fn().mockResolvedValue([]),

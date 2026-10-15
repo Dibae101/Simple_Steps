@@ -51,6 +51,7 @@ class ParsedFormula:
         raw_input: str,
         error: Optional[str] = None,
         operation: Optional[Dict[str, Any]] = None,
+        parts: Optional[Dict[str, Any]] = None,
     ):
         self.operation_id = operation_id
         self.orchestration = orchestration
@@ -61,6 +62,8 @@ class ParsedFormula:
         # invalid, or the core operation it compiles to.
         self.error = error
         self.operation = operation
+        # The same formula as the step editor edits it (operation_formula.to_parts).
+        self.parts = parts
 
     def as_dict(self) -> Dict[str, Any]:
         d = {
@@ -74,6 +77,8 @@ class ParsedFormula:
             d["error"] = self.error
         if self.operation is not None:
             d["operation"] = self.operation
+        if self.parts is not None:
+            d["parts"] = self.parts
         return d
 
 
@@ -106,14 +111,14 @@ def parse_formula(input_str: str) -> ParsedFormula:
     # Core's own syntax — tool[mod.verb(…)](wf["x"], …) — is compiled, not
     # flattened into text arguments: its references stay typed. `args` is
     # empty because the formula itself is the step's whole definition.
-    from .operation_formula import FormulaError, compile_formula, is_canonical
+    from .operation_formula import FormulaError, compile_formula, is_canonical, to_parts
     if is_canonical(raw):
         try:
             compiled = compile_formula(raw)
         except FormulaError as exc:
             return ParsedFormula(None, None, {}, False, raw, error=str(exc))
         return ParsedFormula(compiled.tool_id, None, {}, True, raw,
-                             operation=compiled.operation())
+                             operation=compiled.operation(), parts=to_parts(compiled))
 
     info = _sf_parse_call(raw)
     if not info["is_valid"]:

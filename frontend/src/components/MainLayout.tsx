@@ -20,6 +20,7 @@ import type { Workflow } from '../types/models';
 import { initialWorkflow } from '../mocks/initialData';
 import { StepWiringProvider } from '../context/StepWiringContext';
 import ResourcesMenu from './ResourcesMenu';
+import { useConnection } from '../hooks/useConnection';
 import { fetchWorkspaceInfo, openWorkspace, type WorkspaceInfo } from '../services/api';
 import './MainLayout.css';
 
@@ -157,6 +158,10 @@ export default function MainLayout() {
     },
   };
 
+  const connection = useConnection();
+  // The activity pill shows what the run is doing, not the debug chatter.
+  const latestLog = [...executionLogs].reverse().find(l => l.level !== 'debug');
+
   // Suppress isModified when we're switching tabs / loading (not user edits)
   const suppressModified = useRef(false);
 
@@ -252,7 +257,7 @@ export default function MainLayout() {
         return {
           ...t,
           id: `${projectId}::${saved.id}`,
-          title: `${pipelineName}.json`,
+          title: pipelineName,
           projectId,
           projectDisplayName: projectDisplayName ?? projectId,
           pipelineId: saved.id,
@@ -269,7 +274,7 @@ export default function MainLayout() {
   const handleRename = useCallback((newName: string) => {
     setOpenTabs(prev => prev.map(t => {
       if (!t.isActive) return t;
-      return { ...t, title: `${newName}.json`, isModified: true };
+      return { ...t, title: newName, isModified: true };
     }));
     loadWorkflowObject({ ...workflow, name: newName });
   }, [workflow, loadWorkflowObject]);
@@ -309,7 +314,7 @@ export default function MainLayout() {
     }
     const newTab: OpenTab = {
       id: tabKey,
-      title: `${wf.name}.json`,
+      title: wf.name,
       isActive: true,
       projectId,
       projectDisplayName: projectId.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
@@ -338,7 +343,7 @@ export default function MainLayout() {
     }
     const newTab: OpenTab = {
       id: tabKey,
-      title: `${wf.name}.json`,
+      title: wf.name,
       isActive: true,
       workflow: wf,
     };
@@ -386,7 +391,7 @@ export default function MainLayout() {
     };
     const newTab: OpenTab = {
       id: blank.id,
-      title: 'Untitled.json',
+      title: 'Untitled',
       isActive: true,
       workflow: blank,
     };
@@ -605,8 +610,9 @@ export default function MainLayout() {
         logErrorCount={executionLogs.filter(l => l.level === 'error').length}
         isLogOpen={isLogOpen}
         onToggleLogs={toggleLog}
-        onClearOutputs={clearLogs}
         pipelineMeta={pipelineMeta}
+        connection={connection}
+        latestLog={latestLog}
         resourcesMenu={
           <ResourcesMenu
             resources={workflow.resources}

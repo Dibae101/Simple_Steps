@@ -1,4 +1,7 @@
 import Icon from './Icon';
+import SessionStatus from './SessionStatus';
+import type { Connection } from '../hooks/useConnection';
+import type { LogEntry } from './ExecutionLog';
 import './UnifiedToolbar.css';
 
 export interface PipelineMeta {
@@ -17,11 +20,13 @@ interface UnifiedToolbarProps {
   logErrorCount?: number;
   isLogOpen?: boolean;
   onToggleLogs?: () => void;
-  onClearOutputs?: () => void;
-  onRestartBackend?: () => void;
   pipelineMeta?: PipelineMeta;
   /** The workflow's Resources menu, placed after the execution controls. */
   resourcesMenu?: React.ReactNode;
+  /** Whether this tab's session is live; shown as the session pill. */
+  connection: Connection;
+  /** The most recent log line, shown in the activity pill while running. */
+  latestLog?: LogEntry;
 }
 
 export default function UnifiedToolbar({
@@ -33,11 +38,15 @@ export default function UnifiedToolbar({
   logErrorCount = 0,
   isLogOpen = false,
   onToggleLogs,
-  onClearOutputs,
-  onRestartBackend,
   pipelineMeta,
   resourcesMenu,
+  connection,
+  latestLog,
 }: UnifiedToolbarProps) {
+  const running = pipelineMeta?.counts.running ?? 0;
+  const errors = pipelineMeta?.counts.errors ?? 0;
+  const isBusy = pipelineStatus === 'running' || running > 0;
+
   return (
     <div className="unified-toolbar" data-testid="unified-toolbar">
 
@@ -67,18 +76,6 @@ export default function UnifiedToolbar({
         >
           <Icon name="debug-stop" size={14} />
         </button>
-
-        {onRestartBackend && (
-          <button className="ut-btn" onClick={onRestartBackend} title="Restart Backend">
-            <Icon name="debug-restart" size={14} />
-          </button>
-        )}
-
-        {onClearOutputs && (
-          <button className="ut-btn" onClick={onClearOutputs} title="Clear All Outputs">
-            <Icon name="clear-all" size={14} />
-          </button>
-        )}
       </div>
 
       <div className="ut-divider" />
@@ -91,35 +88,30 @@ export default function UnifiedToolbar({
         </>
       )}
 
-      {/* ── Center-right: Pipeline status counts ─────────────────────── */}
-      {pipelineMeta && (pipelineMeta.counts.running > 0 || pipelineMeta.counts.errors > 0) && (
-        <div className="ut-group ut-meta-group" title="Pipeline status summary">
-          <div className="ut-meta-counts">
-            {pipelineMeta.counts.running > 0 && (
-              <span className="ut-meta-count ut-count-running" title="Currently running">
-                {pipelineMeta.counts.running} running
-              </span>
-            )}
-            {pipelineMeta.counts.errors > 0 && (
-              <span className="ut-meta-count ut-count-errors" title="Steps with errors">
-                {pipelineMeta.counts.errors} errors
-              </span>
-            )}
-          </div>
-        </div>
-      )}
+      {/* ── Session, then what is happening right now ────────────────── */}
+      <div className="ut-group ut-meta-group">
+        <SessionStatus connection={connection} />
 
-      {/* ── Right: Status + Logs ─────────────────────────────────────── */}
+        {isBusy && (
+          <span
+            className="ut-meta-count ut-count-running ut-activity"
+            title={latestLog ? `${latestLog.timestamp}  ${latestLog.message}` : 'Running'}
+          >
+            {running > 0 ? `${running} running` : 'Running'}
+            {latestLog && <span className="ut-activity-line">· {latestLog.message}</span>}
+          </span>
+        )}
+        {errors > 0 && (
+          <span className="ut-meta-count ut-count-errors" title="Steps with errors">
+            {errors} {errors === 1 ? 'error' : 'errors'}
+          </span>
+        )}
+      </div>
+
+      {/* ── Right: Logs ──────────────────────────────────────────────── */}
       <div className="ut-spacer" />
 
       <div className="ut-group ut-status-group">
-        <div className="ut-status-pill" title="Backend connection status">
-          <span className={`ut-status-dot ${pipelineStatus === 'running' ? 'running' : 'online'}`} />
-          <span className="ut-status-text">
-            {pipelineStatus === 'running' ? 'Running' : 'Online'}
-          </span>
-        </div>
-
         {onToggleLogs && (
           <button
             className={`ut-btn ut-btn-logs ${isLogOpen ? 'active' : ''} ${logErrorCount > 0 ? 'has-errors' : ''}`}

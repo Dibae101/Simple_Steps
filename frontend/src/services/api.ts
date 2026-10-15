@@ -224,18 +224,6 @@ export function getModifiers(): Promise<Record<string, ModifierInfo>> {
 }
 
 /**
- * Validates connection to the backend.
- */
-export async function checkBackendStatus(): Promise<boolean> {
-    try {
-        await fetch(`${API_BASE}/operations`);
-        return true;
-    } catch {
-        return false;
-    }
-}
-
-/**
  * Executes a single step on the backend.
  * Returns the reference ID for the result, not the data itself.
  *

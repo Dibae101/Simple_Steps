@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, lazy, Suspense } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, lazy, Suspense } from 'react';
 import type { PanelId } from './stepPanels';
 import type { GridPick } from '../utils/selection';
 import type { Step } from '../types/models';
@@ -32,6 +32,8 @@ interface StepToolbarProps {
   onDelete?: (id: string) => void;
   onEdit?: (id: string) => void;
   onFormulaChange?: (id: string, formula: string, parsed: ParsedFormula) => void;
+  /** Enter in the formula bar: the formula is committed (the step editor redraws). */
+  onFormulaCommit?: (formula: string) => void;
   // Allow parent to push a formula update (from UI config changes → formula bar)
   externalFormula?: string;
   // Widget toggles — any number of widgets can be open at once
@@ -53,6 +55,7 @@ export default function StepToolbar({
   onRun, 
   onDelete, 
   onFormulaChange,
+  onFormulaCommit,
   externalFormula,
   openPanels,
   onTogglePanel,
@@ -64,6 +67,10 @@ export default function StepToolbar({
   // Local state for immediate UI feedback
   const initFormula = step.formula || step.operation || '';
   const [formula, setFormula] = useState(initFormula);
+  // Enter commits what the bar shows; read it through a ref so the handler
+  // never sees an older formula than the one on screen.
+  const formulaRef = useRef(formula);
+  useLayoutEffect(() => { formulaRef.current = formula; }, [formula]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [suggestions, setSuggestions] = useState<OperationDefinition[]>([]);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -368,7 +375,7 @@ export default function StepToolbar({
         <button
           className={`btn-icon tab-icon ${isOpen('details') ? 'active' : ''}`}
           onClick={(e) => { e.stopPropagation(); onTogglePanel('details'); }}
-          title="Operation Functionality"
+          title="Formula: tool, parameters and modifiers"
           style={{
             color: isOpen('details') ? '#4ea1ff' : '#aaa',
             background: isOpen('details') ? '#1f3a5f' : 'transparent',
@@ -421,6 +428,7 @@ export default function StepToolbar({
             }}
             onEnter={() => {
               setShowSuggestions(false);
+              onFormulaCommit?.(formulaRef.current);
               onRun?.(step.id);
             }}
             onBlur={() => {

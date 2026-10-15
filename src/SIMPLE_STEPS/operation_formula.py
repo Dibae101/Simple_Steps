@@ -64,6 +64,7 @@ bar can validate as you type. ``grid_runner.run_formula`` runs the result.
 from __future__ import annotations
 
 import ast
+import json
 import re
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
@@ -390,6 +391,7 @@ def _modifiers(node: ast.AST) -> List[dict]:
                     f'tool[mod.{kind}()](wf["…"]), not over= inside the brackets'
                 )
             params[kw.arg] = _setting(kw.value, kind, kw.arg)
+        _check_settings(kind, params)
         written.append({"kind": kind, "params": params})
     return list(reversed(written))      # core stores innermost first
 
@@ -448,6 +450,27 @@ def _argument(node: ast.AST, name: str) -> Any:
             f'{name} must be a literal (text, a number, a list, …) or wf["…"], '
             f"not {ast.unparse(node)}"
         ) from None
+
+
+def _check_settings(kind: str, params: Dict[str, Any]) -> None:
+    """Settings core's catalog requires, and names it doesn't accept. Core
+    itself only finds these out when the step runs."""
+    spec = grid.modifier_catalog()[kind]["settings"]
+    accepted = {s["name"] for s in spec}
+    # sweep's catalog lists "<swept>": any other name is a list to sweep over.
+    open_ended = any(name.startswith("<") for name in accepted)
+    unknown = [] if open_ended else [k for k in params if k not in accepted]
+    if unknown:
+        raise FormulaError(
+            f"mod.{kind} has no setting {', '.join(unknown)}; "
+            f"it takes {', '.join(sorted(accepted - {'over'}))}"
+        )
+    missing = [s["name"] for s in spec if s["required"] and s["name"] not in params]
+    if missing:
+        raise FormulaError(
+            f"mod.{kind} needs {', '.join(missing)}: "
+            f"mod.{kind}({', '.join(f'{m}=…' for m in missing)})"
+        )
 
 
 def _setting(node: ast.AST, kind: str, name: str) -> Any:
@@ -543,3 +566,90 @@ def _written(modifiers: List[dict]) -> str:
         settings = ", ".join(f"{k}={v!r}" for k, v in m["params"].items())
         parts.append(f"mod.{m['kind']}({settings})")
     return ", ".join(parts)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Writing a formula back: the step editor's half of the round trip
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# The step editor edits *parts*, which keep what the user wrote — unlike core's
+# operation JSON, which fills in an inferred verb and drops positional
+# resources. Modifiers in parts are in WRITTEN order (left to right), so the
+# editor lists them top to bottom exactly as the formula reads.
+# ``compile_formula(format_parts(to_parts(c)))`` gives back ``c``.
+
+def to_parts(c: Compiled) -> dict:
+    """A compiled formula as the editor's parts."""
+    return {
+        "tool": c.tool_id,
+        "bound_to": c.bound_to,
+        "modifiers": None if c.modifiers is None else [
+            {"kind": m["kind"], "params": dict(m["params"])} for m in reversed(c.modifiers)
+        ],
+        "input": c.input,
+        "resources": list(c.positional_resources),
+        "arguments": dict(c.arguments),
+        "inputs": list(c.inputs),
+    }
+
+
+def format_parts(parts: dict) -> str:
+    """The editor's parts as a formula; raises :class:`FormulaError` if the
+    result doesn't compile, so the editor can't write an invalid step."""
+    tool = parts.get("tool") or ""
+    if not tool:
+        raise FormulaError("choose a tool")
+    inputs = parts.get("inputs") or []
+    arguments = parts.get("arguments") or {}
+    if inputs:                                           # a combine
+        args = [_ref("wf", name) for name in inputs]
+        args += [f"{k}={_lit(v)}" for k, v in arguments.items()]
+        formula = f"{tool}({', '.join(args)})"
+    else:
+        head = f'{_ref("res", parts["bound_to"])}.{tool}' if parts.get("bound_to") else tool
+        modifiers = parts.get("modifiers")
+        if modifiers is not None:
+            head += "[" + ", ".join(
+                f"mod.{m['kind']}({', '.join(f'{k}={_lit(v)}' for k, v in (m.get('params') or {}).items())})"
+                for m in modifiers
+            ) + "]"
+        args = [_ref("wf", parts["input"])] if parts.get("input") else []
+        args += [_ref("res", name) for name in parts.get("resources") or []]
+        args += [f"{k}={_value(v)}" for k, v in arguments.items()]
+        # tool[mod.source()] and tool[mod.sweep(…)] read nothing: no call needed.
+        no_call = not args and modifiers and any(m["kind"] in NO_INPUT_VERBS for m in modifiers)
+        formula = head if no_call else f"{head}({', '.join(args)})"
+    compile_formula(formula)
+    return formula
+
+
+def _ref(kind: str, name: str) -> str:
+    return f"{kind}[{_lit(name)}]"
+
+
+def _value(v: Any) -> str:
+    """A tool argument: a reference, a resource, or a literal."""
+    if _is_ref(v):
+        return _ref("wf", v["$ref"])
+    if _is_res(v):
+        return _ref("res", v["$res"])
+    return _lit(v)
+
+
+def _lit(v: Any) -> str:
+    """A Python literal that ``ast.literal_eval`` reads back as *v*. Strings
+    use double quotes, as the saved workflows do — single when the text holds
+    double quotes (JSON, say), so it reads without escapes."""
+    if isinstance(v, str):
+        if '"' in v and "'" not in v:
+            return repr(v)
+        return json.dumps(v, ensure_ascii=False)
+    if isinstance(v, bool) or v is None or isinstance(v, (int, float)):
+        return repr(v)
+    if isinstance(v, list):
+        return "[" + ", ".join(_lit(x) for x in v) + "]"
+    if isinstance(v, tuple):
+        return "(" + ", ".join(_lit(x) for x in v) + ("," if len(v) == 1 else "") + ")"
+    if isinstance(v, dict):
+        return "{" + ", ".join(f"{_lit(k)}: {_lit(x)}" for k, x in v.items()) + "}"
+    return repr(v)
