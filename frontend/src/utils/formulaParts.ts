@@ -69,6 +69,54 @@ export function moveModifier(mods: ModifierPart[], index: number, delta: number)
 }
 
 /**
+ * *mods* with its shape verb set to *verb*: the first shape modifier is
+ * replaced (its settings belong to the old verb), or *verb* goes first when
+ * there is none. Execution modifiers (retry, timeout) stay where they are.
+ */
+export function withShapeVerb(
+  mods: ModifierPart[] | null,
+  verb: string,
+  isShape: (kind: string) => boolean,
+): ModifierPart[] {
+  const list = mods ?? [];
+  const i = list.findIndex((m) => isShape(m.kind));
+  if (i < 0) return [{ kind: verb, params: {} }, ...list];
+  if (list[i].kind === verb) return list;
+  const next = [...list];
+  next[i] = { kind: verb, params: {} };
+  return next;
+}
+
+/** `mod.auto()`: the verb is picked from the input's data each run (SHIM core §N). */
+export const AUTO = 'auto';
+
+/**
+ * The modifiers after the step's wiring changed. A step that reads a
+ * reference and has no verb chosen gets `mod.auto()`; an auto step that no
+ * longer reads anything becomes a source. A verb the user chose is kept.
+ */
+export function autoForWiring(parts: FormulaParts, isShape: (kind: string) => boolean): ModifierPart[] | null {
+  const shape = parts.modifiers?.find((m) => isShape(m.kind));
+  const undecided = !shape || shape.kind === AUTO;
+  if (!undecided) return parts.modifiers;
+  if (parts.input) return withShapeVerb(parts.modifiers, AUTO, isShape);
+  return shape?.kind === AUTO ? withShapeVerb(parts.modifiers, 'source', isShape) : parts.modifiers;
+}
+
+/** Changing the modifiers makes them explicit: `auto` becomes the verb it resolves to now. */
+export function explicitModifiers(mods: ModifierPart[], resolved: string): ModifierPart[] {
+  return mods.map((m) => (m.kind === AUTO ? { kind: resolved, params: {} } : m));
+}
+
+/** Whether an edit changed what the step reads or how — the cue to re-infer its verb. */
+export function wiringChanged(a: FormulaParts | null, b: FormulaParts): boolean {
+  if (!a) return true;
+  return a.tool !== b.tool || a.bound_to !== b.bound_to || a.input !== b.input
+    || JSON.stringify(a.arguments) !== JSON.stringify(b.arguments)
+    || JSON.stringify(a.resources) !== JSON.stringify(b.resources);
+}
+
+/**
  * Parts for a step that has just been given *tool*: the verb is inferred, and
  * it reads the step before it — unless the tool is a source, which reads none.
  */

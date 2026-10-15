@@ -54,6 +54,26 @@ export interface FormulaParts {
   inputs: string[];
 }
 
+/**
+ * The shape verb core picks for *parts*, and why (`POST /api/infer_verb`).
+ * *inputRef* is the input step's output, when it has run — core then reads its
+ * columns too. *resources* is the workflow's declarations, for bound tools.
+ */
+export async function inferVerb(
+  parts: FormulaParts,
+  inputRef?: string,
+  resources?: Record<string, unknown>,
+): Promise<{ verb: string; why: string; used_data: boolean }> {
+  const resp = await fetch(`${API_BASE}/infer_verb`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ parts, input_ref: inputRef, resources }),
+  });
+  if (!resp.ok) throw new Error('could not infer a verb');
+  return resp.json();
+}
+
 /** Write parts as a formula. Throws with the reason if they make no valid step. */
 export async function formatFormula(parts: FormulaParts): Promise<{ formula: string; parsed: ParsedFormula }> {
   const resp = await fetch(`${API_BASE}/format_formula`, {

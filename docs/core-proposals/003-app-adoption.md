@@ -30,6 +30,9 @@ things block that, and one is only a wrong type annotation.
 | **H. Duplicate tool ids overwrite silently** | **Deferring to core.** `status.md` §3 already lists it and recommends a *warning*, for a better reason than our original "raise" — see §H |
 | **I. Our 46 tools pass core's declaration contract** | **Nothing needed — a green light.** All four silent-failure rules clean, and `STRICT_TYPES` would accept every one. See §I |
 | **J. One `DataFrame` param empties the whole `input_schema`** | **Fix — the most damaging one here.** Every property becomes `{}` and every `type_name` becomes `"Any"`, so a table tool's contract carries no types, no enums and no required flags. `input_schema` is what grounds the agent |
+| **N. No written `mod.auto()`** | **Add it, scoped.** Stored in the operation, resolved by `run` with `infer_verb` against the input's data, the resolved verb reported on the step. Answers `infer_verb`'s own objection to a stored auto — see §N. Shimmed |
+| **O. A missing required modifier setting passes declaration** | **Report it like a misspelt one.** `retry` with no `times` is accepted and fails at run with a bare `TypeError`; a misspelt setting is already a good declaration problem. Shimmed |
+| **P. An operation has no source form** | **Add `to_source()`.** The formula is core's Python form; its printer belongs beside it, with `compile(to_source(op)) == op` as the invariant. App keeps its own until then |
 
 ---
 
@@ -529,6 +532,135 @@ the public function misses it.
 **Shimmed:** `SHIM(core §M)` in `core_bridge.inferable_method` binds `self`
 before inference. Delete it when `infer_verb` accepts a bound tool (or a
 `(type, method)` pair).
+
+---
+
+## N. Grid: a written `mod.auto()` — the verb picked from the data each run
+
+*Added 2026-10-15, against `a799d0e`.*
+
+The step editor lets a user wire a tool to a reference without choosing how it
+iterates. Today that is either a bare formula, `is_big(wf["readings"])`, whose
+verb nobody can see, or a verb the app infers once and writes down. The app
+wants a third, explicit state: **"pick it from the data"**, written in the
+formula so it survives saving and shows in the editor:
+
+```
+is_big[mod.auto()](wf["readings"])          # runs as filter
+add_n[mod.auto()](wf["readings"])           # runs as collapse — read from the data
+scale[mod.auto(), mod.retry(times=2)](wf["readings"])   # auto + execution modifiers
+```
+
+Core has no such modifier:
+
+```
+'auto' in grid.MODIFIERS     -> False
+'auto' in grid.SHAPE_VERBS   -> False
+```
+
+and `grid.infer_verb`'s docstring argues against one: an `auto` that stayed in
+the data "would be the one modifier whose shape is unknowable before running,
+which is exactly the property staging, serialization and the round-trip
+invariant all depend on." That is a fair objection, so the ask is scoped to
+answer it:
+
+- **Stored, never run.** `auto` lives in the operation JSON and the formula;
+  `Workflow.run` resolves it with `infer_verb(fn, upstream, literals)` against
+  the input's *actual* output and runs the concrete verb. The resolved verb is
+  reported on the step (`step.verb`, `step.why`), so staging and the UI see a
+  real shape the moment the input exists.
+- **Shape unknown only until the input has run.** Before that, `infer_verb`
+  still answers from the signature (returns `bool` → filter, a list → expand)
+  — verified with no upstream: `is_big` → filter, `fan_out` → expand; only the
+  data-dependent case (`add_n`: `'acc' is not a column but 'n' is` → collapse)
+  needs the data. Staging can show that provisional verb, marked as such.
+- **Round trip holds.** `auto` round-trips as `auto`; it is never rewritten
+  into the inferred verb behind the user's back. Choosing a verb replaces it —
+  the app does exactly this — so "an inferred verb is never silently
+  re-inferred" stays true for every verb the user picked.
+
+**Proposed:** `mod.auto()` in `grid.MODIFIERS` (class `shape`, no settings,
+`row_rule: "unknown"`), resolved in `run`, with the resolved verb and reason
+on the step.
+
+**Shimmed:** `SHIM(core §N)` in `core_bridge` — `AUTO`, `modifier_catalog()`
+(core's catalog plus `auto`), `is_modifier` / `is_shape_verb`, and
+`resolve_auto`, which swaps the inferred verb in before `Operation.from_dict`,
+so core only ever runs an ordinary operation. The formula module and the
+runner only call those functions. Verified end to end through core:
+
+```
+is_big[mod.auto()](wf["readings"])                     -> core ran ['filter']    3 of 4 rows
+fan_out[mod.auto()](wf["readings"])                    -> core ran ['expand']    8 rows
+add_n[mod.auto()](wf["readings"])                      -> core ran ['collapse']  1 row
+scale[mod.auto(), mod.retry(times=2)](wf["readings"])  -> core ran ['retry', 'map']
+```
+
+Delete the block when core adds `mod.auto`; nothing outside `core_bridge`
+names it except the editor's UI text.
+
+---
+
+## O. Grid: a missing required modifier setting passes declaration
+
+*Added 2026-10-15, against `a799d0e`.*
+
+```
+Operation.from_dict({... "modifiers": [{"kind": "retry", "params": {}}, {"kind": "map", ...}]})
+  -> accepted
+wf.step("s").problems
+  -> ()
+wf.run("s", tools)
+  -> TypeError: _d_retry() missing 1 required keyword-only argument: 'times'
+```
+
+The catalog already knows: `modifier_catalog()["retry"]["settings"]` is
+`[{"name": "times", "required": True, ...}]`. The other half is already right —
+a misspelt setting is a declaration problem, in good words:
+
+```
+wf.step("s").problems
+  -> ("map takes no parameter 'nme'; it accepts axis, name, retries",)
+```
+
+— but only once the step is declared in a workflow beside its input, which a
+formula bar validating as you type doesn't have.
+
+**Proposed:** report a missing required setting as a declaration problem like
+the misspelt one, and expose the check without a workflow
+(`grid.check_modifier(kind, params) -> str | None`, or on `from_dict`).
+
+**Shimmed:** `SHIM(core §O)` in `core_bridge.modifier_settings_problem` checks
+both from core's catalog, in core's wording. Delete when core reports both
+without a workflow.
+
+---
+
+## P. An operation has no source form
+
+*Added 2026-10-15, against `a799d0e`.*
+
+The app's step editor edits a formula as parts and writes it back, so it needs
+the inverse of the formula syntax — operation → `tool[mod.verb(…)](wf["x"], k=v)`.
+Core has the forward direction only (`Operation.from_dict`, `to_dict`); its
+text form is a debugging repr:
+
+```
+repr(Operation.from_dict(...))  -> "<Operation map() ∘ scale over='r'>"
+```
+
+The syntax is core's own Python form — `tool[mod.map(name="s")](wf["r"])` is
+what `pipeline.py` writes — so its printer belongs beside it, where the
+round-trip invariant can be tested against core's own operations.
+
+**Proposed:** `Operation.to_source() -> str` (or `grid.source(operation)`),
+with `compile(to_source(op)) == op` as the invariant.
+
+**Not a shim:** the formula grammar is the app's (see below), so the app keeps
+its printer, `operation_formula.format_parts`, verified on all 60 example
+formulas: each compiles back to the same operation, and 57 come back
+character-for-character identical. It would be replaced, not deleted, if core
+adds one.
 
 ---
 

@@ -287,6 +287,30 @@ async def api_format_formula(payload: dict = Body(...)):
     except FormulaError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     return {"formula": formula, "parsed": parse_formula(formula).as_dict()}
+
+
+@app.post("/api/infer_verb")
+async def api_infer_verb(
+    payload: dict = Body(...),
+    session_id: str = Depends(get_session_id),
+):
+    """The shape verb core would pick for the step editor's *parts*, and why.
+
+    ``input_ref`` is the input step's output reference, when it has run: core
+    then also reads its columns (``'acc' is not a column but 'n' is`` →
+    collapse). ``resources`` is the workflow's declarations, for bound tools.
+    """
+    from .engine import get_value
+    from .grid_runner import infer_verb_for
+    upstream = None
+    ref = payload.get("input_ref")
+    if ref:
+        try:
+            upstream = get_value(ref, session_id=session_id)
+        except Exception:
+            upstream = None             # not run in this session: infer from the tool alone
+    verb, why = infer_verb_for(payload.get("parts") or {}, upstream, payload.get("resources"))
+    return {"verb": verb, "why": why, "used_data": upstream is not None}
 # --- Middleware ---
 # Allow any localhost port so multiple Simple Steps instances can co-exist
 # (Streamlit-style port auto-increment means we may run on :8001, :8002, etc.)
@@ -535,9 +559,9 @@ async def list_modifiers():
     ``grid.modifier_catalog()`` so the UI's Orchestration control cannot drift
     from what core runs (core react-api.md, ``GET /modifiers``).
     """
-    from simple_steps_core import grid
+    from .core_bridge import modifier_catalog      # core's, plus mod.auto (SHIM core §N)
     from .settings import get_settings
-    return {"engine": get_settings().engine, "modifiers": grid.modifier_catalog()}
+    return {"engine": get_settings().engine, "modifiers": modifier_catalog()}
 
 
 @app.get("/api/resources")

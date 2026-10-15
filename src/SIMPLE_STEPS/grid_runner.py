@@ -231,9 +231,11 @@ def run_formula(formula: str, load: Callable[[str], Any],
     fn = _formula_tool(compiled, tools, types)
     _bind_positional_resources(compiled, fn, types)
     inferred = None
-    if compiled.modifiers is None:
-        # tool(wf["x"], …): infer the verb from the tool, with the input's data
-        # loaded — never from a not-yet-run source (core 005 K2).
+    if compiled.needs_inference:
+        # tool(wf["x"], …) or tool[mod.auto()](wf["x"], …): infer the verb from
+        # the tool, with the input's data loaded — never from a not-yet-run
+        # source (core 005 K2). `auto` is SHIM(core §N): operation() swaps the
+        # inferred verb in, so core runs an ordinary operation.
         if fn is None:
             raise GridStepError(f"no tool named '{compiled.tool_id}'")
         if compiled.bound_to:
@@ -262,6 +264,44 @@ def run_formula(formula: str, load: Callable[[str], Any],
     except (ResourceError, grid.ResourceNotLoaded) as exc:
         raise GridStepError(str(exc)) from exc
     return wf.step(_FORMULA_STEP), operation
+
+
+def infer_verb_for(parts: dict, upstream: Any = None,
+                   resources: Optional[Dict[str, Any]] = None) -> Tuple[str, str]:
+    """The shape verb the step editor should write for *parts*, and why.
+
+    Core resolves an inferred verb once, when the step is wired, into a
+    concrete one the user sees and can change (``grid.infer_verb``'s doc) —
+    so the editor asks here whenever the input or an argument changes.
+    *upstream* is the input step's output if it has run; without it core
+    still infers from the tool's signature (returns bool → filter, …).
+    """
+    if not parts.get("input"):
+        return "source", "it reads no step"
+    tool = parts.get("tool") or ""
+    if parts.get("bound_to"):
+        from .core_bridge import inferable_method
+        from .resources import ResourceError, resolve
+        name = parts["bound_to"]
+        declarations = resources or {}
+        if name not in declarations:
+            return "map", f'res["{name}"] isn\'t declared yet, so applying it per row'
+        try:
+            cls, _settings = resolve(name, declarations[name])
+        except ResourceError as exc:
+            return "map", str(exc)
+        method = getattr(cls, tool, None)
+        fn = inferable_method(method) if method is not None else None
+    else:
+        fn = _tools().get(tool) or grid.BUILTIN_TOOLS.get(tool)
+    if fn is None:
+        return "map", f"no tool named '{tool}'"
+    literals = {k: v for k, v in (parts.get("arguments") or {}).items()
+                if not (isinstance(v, dict) and set(v) & {"$ref", "$res"})}
+    try:
+        return grid.infer_verb(getattr(fn, "fn", fn), upstream, literals)
+    except Exception as exc:     # core's inference is advice; never block the editor on it
+        return "map", f"couldn't infer ({exc}), so applying it per row"
 
 
 def _formula_tool(compiled, tools: Dict[str, Any], types: Dict[str, type]):

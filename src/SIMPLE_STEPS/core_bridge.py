@@ -19,6 +19,9 @@ Every shim below is tagged with the proposal section that removes it::
     SHIM(core §L)  grid: a step cannot take a value from another step
     SHIM(core §M)  grid: infer_verb reads a bound method's `self` as a column
                    (core 004 §B6, P5)
+    SHIM(core §N)  grid: no `mod.auto()` — a verb picked from the data each run
+    SHIM(core §O)  grid: a missing required modifier setting passes declaration
+                   and fails at run with a bare TypeError
 
 When core lands one of those, delete the tagged block and read the value off
 the :class:`ToolDefinition` instead. Nothing else should need to change — that
@@ -669,3 +672,88 @@ def needs_whole_frame_shim(verb: str, table_args: list, value_args: list) -> boo
     core has a whole-table verb and P5.
     """
     return verb == "dataframe" or bool(table_args) or bool(value_args)
+
+
+# --------------------------------------------------------------------------- #
+# mod.auto(): a verb resolved from the data when the step runs                #
+# --------------------------------------------------------------------------- #
+#
+# SHIM(core §N): core has no `auto` modifier — `grid.infer_verb` resolves a
+# verb once, at wiring time, and core deliberately never stores an "auto"
+# (its docstring: the one modifier whose shape is unknowable before running).
+# The app wants that choice *written*: `tool[mod.auto()](wf["x"])` says "pick
+# the verb from the input's data, every run", so a step wired to a reference
+# keeps adapting until the user picks a verb. Everything auto-specific lives
+# in this block; the formula module and the runner only ask these functions.
+# Delete the block when core adds `mod.auto` (or rejects it, and the app
+# writes the inferred verb instead).
+
+AUTO = "auto"
+
+#: How `auto` appears in the modifier catalog, beside core's own verbs.
+AUTO_CATALOG_ENTRY = {
+    "name": AUTO,
+    "class": "shape",
+    "row_rule": "unknown",
+    "settings": [],
+    "description": "Pick the verb from the input's data each time the step runs "
+                   "(grid.infer_verb). Choose a verb to fix it.",
+}
+
+
+def is_modifier(kind: str) -> bool:
+    """Core's modifiers, plus `auto`."""
+    from simple_steps_core import grid
+    return kind in grid.MODIFIERS or kind == AUTO
+
+
+def is_shape_verb(kind: str) -> bool:
+    """Core's shape verbs, plus `auto` — it stands in for one."""
+    from simple_steps_core import grid
+    return kind in grid.SHAPE_VERBS or kind == AUTO
+
+
+def modifier_catalog() -> Dict[str, dict]:
+    """``grid.modifier_catalog()`` with `auto` listed first among the shapes."""
+    from simple_steps_core import grid
+    return {AUTO: dict(AUTO_CATALOG_ENTRY), **grid.modifier_catalog()}
+
+
+def resolve_auto(modifiers: List[dict], verb: str) -> List[dict]:
+    """*modifiers* (core's order) with `auto` replaced by the verb core
+    inferred, so the operation core runs is an ordinary one."""
+    return [{"kind": verb, "params": {}} if m["kind"] == AUTO else dict(m) for m in modifiers]
+
+
+
+# --------------------------------------------------------------------------- #
+# Modifier settings, checked before a step runs                               #
+# --------------------------------------------------------------------------- #
+
+def modifier_settings_problem(kind: str, params: Dict[str, Any]) -> Optional[str]:
+    """Why *params* aren't valid settings for modifier *kind*, or ``None``.
+
+    SHIM(core §O): ``Operation.from_dict`` and the step's ``problems`` accept
+    ``retry`` with no ``times``; it fails only at run, as
+    ``TypeError: _d_retry() missing 1 required keyword-only argument: 'times'``.
+    A misspelt setting core *does* report at declaration — "map takes no
+    parameter 'nme'; it accepts axis, name, retries" — but only once the step
+    is declared in a workflow with its input, which the formula bar doesn't
+    have. So both are checked here, from core's own catalog, in core's words.
+    Delete when ``Operation.from_dict`` (or a ``grid.check_modifier``) reports
+    both without a workflow.
+    """
+    spec = modifier_catalog()[kind]["settings"]
+    accepted = {s["name"] for s in spec}
+    # sweep's catalog lists "<swept>": any other name is a list to sweep over.
+    if not any(name.startswith("<") for name in accepted):
+        unknown = [k for k in params if k not in accepted]
+        if unknown:
+            takes = sorted(accepted - {"over"})
+            return (f"mod.{kind} takes no parameter {', '.join(repr(u) for u in unknown)}; "
+                    + (f"it accepts {', '.join(takes)}" if takes else f"write mod.{kind}()"))
+    missing = [s["name"] for s in spec if s["required"] and s["name"] not in params]
+    if missing:
+        return (f"mod.{kind} needs {', '.join(missing)}: "
+                f"mod.{kind}({', '.join(f'{m}=…' for m in missing)})")
+    return None

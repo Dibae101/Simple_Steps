@@ -671,6 +671,8 @@ export default function MainLayout() {
                   onMaximize={() => toggleMaximizeStep(step.id)}
                   onMinimizeStep={() => minimizeStep(step.id)}
                   allStepNames={workflow.steps.map((s) => s.label)}
+                  resources={workflow.resources}
+                  onDefineResource={defineResource}
                   onInsertStepBefore={(label, formula) => insertStep(index, label, formula)}
                   onSetStepFormula={(id, formula) => updateStep(id, {
                     formula, operation: formula, process_type: 'identity', configuration: {},

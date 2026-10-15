@@ -1,41 +1,56 @@
-/* Step editor (ToolEditor.tsx): Tool ▸ Parameters / Modifiers ▸ each modifier. */
+/* Step editor (ToolEditor.tsx), inside the Formula widget.
+   Thin dark bars — a shade lighter than the widget's own bar — over white
+   panels with black text. Little space between: it reads as one formula. */
 
 .tool-editor {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  font-size: 0.8rem;
-  color: #222;
+  gap: 2px;
+  padding: 2px;
+  font-size: 0.78rem;
 }
 
-.te-warning {
-  display: flex;
-  gap: 6px;
-  align-items: baseline;
-  padding: 4px 8px;
-  border: 1px solid #f0c36d;
-  border-radius: 4px;
-  background: #fff8e1;
-  color: #8a5a00;
-  font-size: 0.75rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
+/* ── Bars ─────────────────────────────────────────────────────────────── */
 
-.te-section {
-  border: 1px solid #c9dbe8;
-  border-radius: 4px;
-  background: #fff;
-}
-
-.te-section.te-nested {
-  border-color: #dde7ef;
-  background: #fafcfe;
-}
-
-.te-section-header {
+.te-bar {
   display: flex;
   align-items: center;
+  gap: 6px;
+  min-height: 20px;
+  padding: 0 4px 0 6px;
+  background: #383838;
+  color: #d4d4d4;
+}
+
+.te-nested > .te-bar {
+  background: #e9edf1;
+  color: #222;
+  border-left: 2px solid #4ea1ff;
+}
+
+.te-bar-label {
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  white-space: nowrap;
+}
+
+.te-bar-note {
+  color: #9a9a9a;
+  font-size: 0.7rem;
+  font-family: ui-monospace, Menlo, monospace;
+}
+
+.te-tool-bar .te-tool-select {
+  flex: 1;
+  min-width: 0;
+  height: 18px;
+  font-size: 0.75rem;
+  background: #fff;
+  color: #111;
+  border: 1px solid #555;
+  border-radius: 2px;
 }
 
 .te-toggle {
@@ -44,7 +59,7 @@
   align-items: center;
   gap: 6px;
   min-width: 0;
-  padding: 4px 6px;
+  padding: 2px 0;
   background: none;
   border: none;
   cursor: pointer;
@@ -53,96 +68,152 @@
   color: inherit;
 }
 
-.te-chevron { width: 10px; color: #6b7c8a; }
-.te-title   { font-weight: 600; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.4px; color: #34495e; }
-.te-summary { color: #6b7c8a; font-size: 0.72rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* index.css darkens every hovered button and rings every focused one;
+   on these bars that hid the label. */
+.te-toggle:hover { background: rgba(255, 255, 255, 0.06); }
+.te-nested > .te-bar .te-toggle:hover { background: rgba(78, 161, 255, 0.08); }
+.te-toggle:focus:not(:focus-visible),
+.te-icon-btn:focus:not(:focus-visible) { outline: none; }
 
-.te-actions {
-  display: flex;
-  gap: 2px;
-  padding-right: 4px;
+.te-chevron { width: 9px; font-size: 11px; }
+
+.te-summary {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.7rem;
+  opacity: 0.75;
+  font-family: ui-monospace, Menlo, monospace;
 }
+
+.te-summary.te-auto {
+  opacity: 1;
+  color: #2b7bd6;
+  font-family: inherit;
+  font-weight: 600;
+}
+
+.te-actions { display: flex; gap: 1px; }
 
 .te-icon-btn {
   border: 1px solid transparent;
   background: none;
-  border-radius: 3px;
-  padding: 0 5px;
+  border-radius: 2px;
+  padding: 0 4px;
   cursor: pointer;
-  color: #4a5b69;
-  font-size: 0.8rem;
-  line-height: 1.4;
+  color: inherit;
+  font-size: 0.78rem;
+  line-height: 1.3;
 }
 
-.te-icon-btn:hover:not(:disabled) { border-color: #c9dbe8; background: #eef5fa; }
-.te-icon-btn:disabled { opacity: 0.35; cursor: default; }
+.te-icon-btn:hover:not(:disabled) { border-color: #9fb3c8; background: rgba(78, 161, 255, 0.12); }
+.te-icon-btn:disabled { opacity: 0.3; cursor: default; }
 .te-remove:hover:not(:disabled) { color: #c0392b; }
 
-.te-section-body {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 4px 8px 8px 22px;
-}
+/* ── Panels ───────────────────────────────────────────────────────────── */
 
-.te-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.te-row select,
-.te-tool-select { flex: 1; min-width: 0; }
-
-.te-label { min-width: 70px; color: #4a5b69; }
-
-.te-fields {
+.te-panel {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  padding: 6px 8px;
+  background: #fff;
+  color: #111;
 }
 
-.te-field {
+.te-nested .te-panel { padding: 4px 6px 6px 10px; }
+
+.te-section.te-nested { border: 1px solid #e1e6eb; }
+
+.te-warning {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  padding: 3px 8px;
+  background: #fff8e1;
+  color: #8a5a00;
+  border-left: 2px solid #f0a500;
+  font-size: 0.74rem;
+}
+
+/* The step column sets nowrap; notes carry core's reasons and must wrap. */
+.te-note, .te-arg-detail, .te-warning, .te-bad { white-space: normal; overflow-wrap: anywhere; }
+.te-note { color: #5f6b76; font-size: 0.74rem; }
+.te-note code, .te-panel code { font-size: 0.72rem; }
+.te-bad { color: #c0392b; font-size: 0.74rem; }
+
+/* ── Argument rows ────────────────────────────────────────────────────── */
+
+.te-rows { display: flex; flex-direction: column; gap: 4px; }
+
+.te-group-label {
+  font-size: 0.64rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #8a96a1;
+  margin-top: 2px;
+}
+
+.te-arg { display: flex; flex-direction: column; gap: 2px; }
+
+.te-arg-row {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-.te-field-name {
-  min-width: 70px;
-  color: #4a5b69;
+.te-arg-name {
+  min-width: 72px;
+  color: #333;
   font-family: ui-monospace, Menlo, monospace;
-  font-size: 0.75rem;
+  font-size: 0.74rem;
 }
 
 .te-required { color: #c0392b; margin-left: 1px; }
 
-.te-field input,
-.te-field select {
+.te-arg-row input,
+.te-arg-row select {
   flex: 1;
   min-width: 0;
   box-sizing: border-box;
+  height: 22px;
+  padding: 0 6px;
+  font-size: 0.76rem;
+  background: #fff;
+  color: #111;
+  border: 1px solid #c5ccd3;
+  border-radius: 3px;
 }
 
-.te-field input.te-ref {
-  background: #fffde7;
-  border-color: #ffc107;
-  color: #856404;
+.te-arg-row input:focus,
+.te-arg-row select:focus { outline: none; border-color: #4ea1ff; box-shadow: 0 0 0 1px #4ea1ff33; }
+
+.te-arg-row input:disabled { background: #f3f5f7; color: #777; }
+
+/* A reference reads as one: monospace, tinted by what it points at. */
+.te-arg-row input.te-is-step,
+.te-arg-row input.te-is-resource {
   font-family: ui-monospace, Menlo, monospace;
 }
+.te-arg-row input.te-is-step     { background: #eef6ff; border-color: #9cc7f5; color: #134a85; }
+.te-arg-row input.te-is-resource { background: #f3effc; border-color: #c3b2ec; color: #4b2a91; }
 
-.te-note {
-  color: #6b7c8a;
-  font-size: 0.75rem;
+.te-arg-detail {
+  margin-left: 80px;
+  color: #5f6b76;
+  font-size: 0.7rem;
 }
 
-.te-note code,
-.te-section code { font-size: 0.72rem; }
+.te-arg .te-section { margin-left: 80px; }
 
-.te-modifiers {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+.te-modifiers { display: flex; flex-direction: column; gap: 3px; }
+
+.te-add {
+  align-self: flex-start;
+  height: 22px;
+  font-size: 0.74rem;
+  background: #fff;
+  color: #111;
+  border: 1px dashed #9aa6b2;
+  border-radius: 3px;
 }
-
-.te-add { align-self: flex-start; }

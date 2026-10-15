@@ -1,10 +1,9 @@
 import { useEffect, useRef, useState, useMemo } from 'react';
 import type { Step } from '../types/models';
-import type { OperationDefinition } from '../services/api';
+import type { OperationDefinition, ResourceDeclaration } from '../services/api';
 import type { ProgressEvent } from '../services/api';
 import DataOutputGrid from './DataOutputGrid';
 import StepToolbar from './StepToolbar';
-import PreviousStepDataPicker from './PreviousStepDataPicker';
 import { applyPick, parseSelectionFormula, selectionFormula, selectStepName, stepRef } from '../utils/selection';
 import type { GridPick, Selection } from '../utils/selection';
 import { parseFormula } from '../utils/formulaParser';
@@ -53,6 +52,10 @@ interface OperationColumnProps {
   progress?: ProgressEvent;
   pipelineStatus?: 'idle' | 'running' | 'paused';
   pipelineCursorIndex?: number;
+  /** The workflow's resources, for resource arguments in the step editor. */
+  resources?: Record<string, unknown>;
+  /** Change a resource's settings (the Resources menu's define). */
+  onDefineResource?: (name: string, definition: string) => Promise<void>;
 }
 
 export default function OperationColumn({
@@ -77,6 +80,8 @@ export default function OperationColumn({
   allStepNames = [],
   onInsertStepBefore,
   onSetStepFormula,
+  resources,
+  onDefineResource,
   onDetach,
   progress,
   pipelineStatus = 'idle',
@@ -100,7 +105,7 @@ export default function OperationColumn({
   const [isLocked, setIsLocked] = useState(false);
 
   // Wiring context — this column is a wiring SOURCE when a later step's formula is focused
-  const { wiringState, activateWiring, pickFrom, setActiveSelection } = useStepWiring();
+  const { wiringState, pickFrom, setActiveSelection } = useStepWiring();
   const isWiringSource =
     wiringState.receivingStepId !== null &&
     wiringState.receivingStepId !== step.id &&
@@ -113,8 +118,8 @@ export default function OperationColumn({
 
   // Refs for parameter inputs so they can also participate in wiring
 
-  // Ref to the formula bar input — forwarded from StepToolbar so the
-  // PreviousStepDataPicker can focus + activate wiring without losing context.
+  // Ref to the formula bar input — forwarded from StepToolbar so a pick from
+  // another step's grid lands at the formula bar's cursor.
   const formulaBarRef = useRef<HTMLTextAreaElement | null>(null);
 
   // ── Picking data from an earlier step ────────────────────────────────────
@@ -548,35 +553,22 @@ export default function OperationColumn({
 
               {/* Details (Function) Tab Content - Edit Functionality */}
               {isOpen('details') && isEditMode && (
-                <StepWidget id="details" collapsed={collapsedPanels.has('details')} onToggleCollapse={toggleCollapsed} background="#ebf5fb" maxHeight={widgetMaxHeight}>
+                <StepWidget id="details" collapsed={collapsedPanels.has('details')} onToggleCollapse={toggleCollapsed} background="#1e1e1e" maxHeight={widgetMaxHeight}>
                   <div className="tab-content details-content">
                     <div className="expander-inner" onClick={(e) => e.stopPropagation()}>
-                      {/* The formula as a form: Tool ▸ Parameters / Modifiers. */}
+                      {/* The formula as a form: Tool, then Inputs and Modifiers. */}
                       <ToolEditor
                         formula={editorFormula}
                         availableOperations={availableOperations}
-                        previousSteps={previousSteps.map((s) => s.label)}
+                        previousSteps={previousSteps}
+                        resources={resources as Record<string, ResourceDeclaration> | undefined}
+                        onDefineResource={onDefineResource}
                         onChange={(formula, parsed) => {
                           setEditorFormula(formula);
                           handleFormulaUpdate(step.id, formula, parsed);
                           onPreview?.(step.id);
                         }}
                       />
-
-                      {/* Previous Step Data Picker — always visible in details tab when
-                          prior steps exist. Lets the user click a column/cell reference
-                          before or during operation configuration. */}
-                      {previousSteps.length > 0 && (
-                        <PreviousStepDataPicker
-                          previousSteps={previousSteps}
-                          onPick={(source, pick) => {
-                            const el = formulaBarRef.current;
-                            if (el) activateWiring(step.id, stepIndex, { current: el } as React.RefObject<HTMLTextAreaElement>, handleReferencePick);
-                            handleReferencePick(source, pick);
-                          }}
-                        />
-                      )}
-
                     </div>
                   </div>
               </StepWidget>
