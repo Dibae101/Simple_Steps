@@ -12,8 +12,6 @@ export interface CellPanel {
   refId: string;
   row: number;
   column: string;
-  /** Opened already minimized (from the viewer's minimize button). */
-  minimized?: boolean;
 }
 
 let panels: CellPanel[] = [];

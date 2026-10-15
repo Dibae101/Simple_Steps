@@ -1140,7 +1140,11 @@ if os.path.isdir(_FRONTEND_DIR):
         # Don't intercept API routes (they're already mounted above)
         if full_path.startswith("api/") or full_path.startswith("docs") or full_path.startswith("openapi"):
             raise HTTPException(status_code=404)
-        return FileResponse(os.path.join(_FRONTEND_DIR, "index.html"))
+        # no-cache: the page names this build's hashed assets, so a cached copy
+        # keeps loading the previous UI after a rebuild. The assets themselves
+        # are content-hashed and may be cached forever.
+        return FileResponse(os.path.join(_FRONTEND_DIR, "index.html"),
+                            headers={"Cache-Control": "no-cache"})
 else:
     @app.get("/")
     async def no_frontend():

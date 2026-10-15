@@ -11,10 +11,14 @@ import './CellViewer.css';
  * a summary and a small preview; this fetches the rest when a cell is opened,
  * so a column of images never loads every full image.
  *
- * Corner controls, as on any window: minimize, expand / restore, pop out, and
- * close. Opened from the grid it is modal; popped out it is a panel of its own
- * (`CellPanelHost`) — dragged by its header, resized from its corner, and open
- * while you keep working, however many there are.
+ * Window controls, like a step's: minimize, expand / restore, pull off, close.
+ *
+ *   inline    — opened in the grid, in a strip under the cell's row. Minimize
+ *               folds it to its title bar; expand lifts it over the whole
+ *               window, and restore puts it back in the grid.
+ *   floating  — pulled off into a panel of its own (`CellPanelHost`): dragged
+ *               by its title bar, resized from its corner, open while you keep
+ *               working — even after its step collapses.
  */
 
 type Size = 'normal' | 'maximized' | 'minimized';
@@ -24,8 +28,7 @@ interface CellViewerProps {
   row: number;
   column: string;
   onClose: () => void;
-  /** A popped-out panel rather than the grid's modal view. */
-  floating?: boolean;
+  mode?: 'inline' | 'floating';
   startMinimized?: boolean;
   /** Where a new panel opens: each one steps down and right of the last. */
   cascade?: number;
@@ -35,16 +38,17 @@ interface CellViewerProps {
 let topZ = 2100;
 
 export default function CellViewer({
-  refId, row, column, onClose, floating = false, startMinimized = false, cascade = 0,
+  refId, row, column, onClose, mode = 'inline', startMinimized = false, cascade = 0,
 }: CellViewerProps) {
+  const floating = mode === 'floating';
   const [data, setData] = useState<CellView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [size, setSize] = useState<Size>(startMinimized ? 'minimized' : 'normal');
   const [pos, setPos] = useState({ x: 96 + cascade * 28, y: 96 + cascade * 28 });
   const [z, setZ] = useState(() => ++topZ);
-  // Resizing from the corner writes an inline width and height, which would
-  // beat the minimized and expanded styles; so the size is held here, read
-  // off the panel whenever it leaves its normal size, and put back on restore.
+  // Resizing a panel from its corner writes an inline width and height, which
+  // would beat the minimized and expanded styles; so the size is held here,
+  // read off the panel whenever it leaves its normal size, and put back on restore.
   const panelRef = useRef<HTMLDivElement>(null);
   const [dims, setDims] = useState<{ width: number; height: number } | null>(null);
   const resize = (target: Size) => {
@@ -63,20 +67,20 @@ export default function CellViewer({
     return () => { live = false; };
   }, [refId, row, column]);
 
-  // Esc closes the modal view only; a panel stays until you close it.
+  // Esc puts an expanded cell back where it was.
   useEffect(() => {
-    if (floating) return;
-    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    if (size !== 'maximized') return;
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') setSize('normal'); };
     document.addEventListener('keydown', esc);
     return () => document.removeEventListener('keydown', esc);
-  }, [onClose, floating]);
+  }, [size]);
 
-  const popOut = (minimized = false) => {
-    openCellPanel({ refId, row, column, minimized });
+  const pullOff = () => {
+    openCellPanel({ refId, row, column });
     onClose();
   };
 
-  // Drag a panel by its header (not by its buttons, and not while maximized).
+  // Drag a panel by its title bar (not by its buttons, and not while expanded).
   const drag = useRef<{ dx: number; dy: number } | null>(null);
   const onHeaderPointerDown = (e: React.PointerEvent) => {
     if (!floating || size === 'maximized' || (e.target as HTMLElement).closest('button')) return;
@@ -92,18 +96,21 @@ export default function CellViewer({
   };
   const onHeaderPointerUp = () => { drag.current = null; };
 
-  const title = `${column} · row ${row}`;
+  const style = floating
+    ? size === 'maximized' ? { zIndex: z, width: 'auto', height: 'auto' }
+      : size === 'minimized' ? { left: pos.x, top: pos.y, zIndex: z, width: 300, height: 'auto' }
+        : { left: pos.x, top: pos.y, zIndex: z, ...(dims ?? {}) }
+    : undefined;
+
   const panel = (
     <div
       ref={panelRef}
-      className={`cv-panel cv-${size}${floating ? ' cv-floating' : ''}`}
-      style={!floating ? undefined
-        : size === 'maximized' ? { zIndex: z, width: 'auto', height: 'auto' }
-          : size === 'minimized' ? { left: pos.x, top: pos.y, zIndex: z, width: 300, height: 'auto' }
-            : { left: pos.x, top: pos.y, zIndex: z, ...(dims ?? {}) }}
+      className={`cv-panel cv-${mode} cv-${size}`}
+      style={style}
       onMouseDown={(e) => { e.stopPropagation(); if (floating) setZ(++topZ); }}
-      role={floating ? 'region' : undefined}
-      aria-label={floating ? `Cell ${column}, row ${row}` : undefined}
+      onClick={(e) => e.stopPropagation()}
+      role="region"
+      aria-label={`Cell ${column}, row ${row}`}
     >
       <div
         className={`cv-header${floating && size !== 'maximized' ? ' cv-draggable' : ''}`}
@@ -112,35 +119,21 @@ export default function CellViewer({
         onPointerUp={onHeaderPointerUp}
         onDoubleClick={() => resize(size === 'maximized' ? 'normal' : 'maximized')}
       >
-        <span className="cv-title">{title}</span>
+        <span className="cv-title">{column} · row {row}</span>
         {data?.summary && <span className="cv-summary">{data.summary}</span>}
         <span className="cv-controls">
-          <button
-            className="cv-control"
-            title={size === 'minimized' ? 'Restore' : 'Minimize'}
-            aria-label={size === 'minimized' ? 'Restore' : 'Minimize'}
-            // Minimized, the modal view would leave the app blocked behind a
-            // backdrop with nothing on it; it pops out minimized instead.
-            onClick={() => (floating ? resize(size === 'minimized' ? 'normal' : 'minimized') : popOut(true))}
-          >
-            <Icon name={size === 'minimized' ? 'chrome-restore' : 'chrome-minimize'} size={14} aria-hidden aria-label={undefined} />
-          </button>
-          <button
-            className="cv-control"
-            title={size === 'maximized' ? 'Restore' : 'Expand'}
-            aria-label={size === 'maximized' ? 'Restore' : 'Expand'}
+          <Control
+            label={size === 'minimized' ? 'Restore' : 'Minimize'}
+            icon={size === 'minimized' ? 'chrome-restore' : 'chrome-minimize'}
+            onClick={() => resize(size === 'minimized' ? 'normal' : 'minimized')}
+          />
+          <Control
+            label={size === 'maximized' ? 'Restore' : 'Expand'}
+            icon={size === 'maximized' ? 'chrome-restore' : 'chrome-maximize'}
             onClick={() => resize(size === 'maximized' ? 'normal' : 'maximized')}
-          >
-            <Icon name={size === 'maximized' ? 'chrome-restore' : 'chrome-maximize'} size={14} aria-hidden aria-label={undefined} />
-          </button>
-          {!floating && (
-            <button className="cv-control" title="Pop out into its own panel" aria-label="Pop out" onClick={() => popOut()}>
-              <Icon name="link-external" size={14} aria-hidden aria-label={undefined} />
-            </button>
-          )}
-          <button className="cv-control cv-close" title={floating ? 'Close' : 'Close (Esc)'} aria-label="Close" onClick={onClose}>
-            <Icon name="close" size={14} aria-hidden aria-label={undefined} />
-          </button>
+          />
+          {!floating && <Control label="Pull off" title="Pull off into its own panel" icon="link-external" onClick={pullOff} />}
+          <Control label="Close" icon="close" className="cv-close" onClick={onClose} />
         </span>
       </div>
       {/* Kept mounted while minimized, so a chart keeps its zoom and pan. */}
@@ -153,13 +146,30 @@ export default function CellViewer({
   );
 
   if (floating) return createPortal(panel, document.body);
-  // Portalled too: rendered inside the step column, `position: fixed` was
-  // relative to the column, which clipped the header and its controls away.
-  return createPortal(
-    <div className="cv-backdrop" onMouseDown={onClose} role="dialog" aria-label={`Cell ${column}, row ${row}`}>
-      {panel}
-    </div>,
-    document.body,
+  // Expanded, an inline cell is lifted over the whole window. It's portalled,
+  // because inside the step column `position: fixed` would be relative to the
+  // column and clip it; a click on the backdrop puts it back in the grid.
+  if (size === 'maximized') {
+    return createPortal(
+      <div className="cv-backdrop" onMouseDown={() => setSize('normal')}>{panel}</div>,
+      document.body,
+    );
+  }
+  return panel;
+}
+
+function Control({ label, title, icon, className = '', onClick }: {
+  label: string;
+  title?: string;
+  icon: string;
+  className?: string;
+  onClick: () => void;
+}) {
+  return (
+    <button className={`cv-control ${className}`} title={title ?? label} aria-label={label}
+      onClick={(e) => { e.stopPropagation(); onClick(); }}>
+      <Icon name={icon} size={14} aria-hidden aria-label={undefined} />
+    </button>
   );
 }
 

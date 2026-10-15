@@ -54,12 +54,26 @@ export default function DataOutputGrid({
   refId,
 }: DataOutputGridProps) {
   const [hoveredCol, setHoveredCol] = useState<string | null>(null);
-  // The typed cell whose full view is open, if any.
-  const [viewing, setViewing] = useState<{ row: number; column: string } | null>(null);
+  // Typed cells opened in place, as "row:column". Each opens in a strip under
+  // its row, with its own minimize / expand / pull-off controls.
+  const [opened, setOpened] = useState<string[]>([]);
   const canOpen = (cell?: Cell) => !!cell?.cell_type && !!refId && !wiringMode;
-  const viewer = viewing && refId ? (
-    <CellViewer refId={refId} row={viewing.row} column={viewing.column} onClose={() => setViewing(null)} />
-  ) : null;
+  const toggleOpen = (cell: Cell) => {
+    const key = `${cell.row_id}:${cell.column_id}`;
+    setOpened((keys) => (keys.includes(key) ? keys.filter((k) => k !== key) : [...keys, key]));
+  };
+  const close = (key: string) => setOpened((keys) => keys.filter((k) => k !== key));
+  /** The open cells of row *r*, each as a full-width strip of the grid. */
+  const openedIn = (r: number) => opened
+    .filter((key) => key.startsWith(`${r}:`))
+    .map((key) => {
+      const column = key.slice(key.indexOf(':') + 1);
+      return (
+        <div key={`open-${key}`} className="cell-open-row" style={{ gridColumn: '1 / -1' }}>
+          <CellViewer refId={refId!} row={r} column={column} onClose={() => close(key)} />
+        </div>
+      );
+    });
   const [hoveredRow, setHoveredRow] = useState<number | null>(null);
   // Cells aren't pickable yet (they need rows AND columns, core 005 K9), so
   // only the setter is used — kept for when they are.
@@ -145,7 +159,7 @@ export default function DataOutputGrid({
 
   const handleCellWireClick = (cell: Cell) => {
     if (wiringMode) return;            // single cells: later (needs rows AND columns)
-    if (canOpen(cell)) setViewing({ row: cell.row_id, column: cell.column_id });
+    if (canOpen(cell)) toggleOpen(cell);
     onCellClick?.(cell);
   };
 
@@ -217,12 +231,12 @@ export default function DataOutputGrid({
           onClick={() => {
             if (cell) handleCellWireClick(cell);
           }}
-          title={canOpen(cell) ? 'Click to open' : 'Click to inspect'}
+          title={canOpen(cell) ? 'Click to open it here' : 'Click to inspect'}
           style={{}}
         >
           {cell ? <CellContent cell={cell} /> : ''}
         </div>
-        {viewer}
+        {openedIn(rows[0])}
       </div>
     );
   }
@@ -361,7 +375,7 @@ export default function DataOutputGrid({
                   className={`grid-cell ${cell ? 'has-value' : 'empty'}${isErrorCell(cell) ? ' error-cell' : ''}${canOpen(cell) ? ' openable' : ''}`}
                   role="gridcell"
                   onClick={() => cell && handleCellWireClick(cell)}
-                  title={canOpen(cell) ? `${cell?.summary ?? ''} — click to open` : (cell?.display_value ?? '')}
+                  title={canOpen(cell) ? `${cell?.summary ?? ''} — click to open it here` : (cell?.display_value ?? '')}
                   style={wiringCellStyle(cellKey, c)}
                   onMouseEnter={() => {
                     if (wiringMode) {
@@ -380,6 +394,8 @@ export default function DataOutputGrid({
                 </div>
               );
             })}
+            {/* An opened cell: a strip under its row, as wide as the grid. */}
+            {openedIn(r)}
           </div>
         ))}
       </div>
@@ -388,7 +404,6 @@ export default function DataOutputGrid({
         {cols.length !== 1 ? 's' : ''}
 
       </div>
-      {viewer}
     </div>
   );
 }

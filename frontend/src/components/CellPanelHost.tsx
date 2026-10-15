@@ -12,8 +12,7 @@ export default function CellPanelHost() {
           refId={p.refId}
           row={p.row}
           column={p.column}
-          floating
-          startMinimized={p.minimized}
+          mode="floating"
           cascade={i}
           onClose={() => closeCellPanel(p.id)}
         />
