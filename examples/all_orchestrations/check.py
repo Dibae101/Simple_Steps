@@ -11,6 +11,7 @@ check.py — run the workflow the way the UI does, and compare with core.
    - ``all-orchestrations`` — core's ``run()``: every shape verb;
    - ``resources`` — core's ``run_resources()``: resources, ``res["…"]``;
    - ``rich-cells`` — app only: images, a Plotly figure and tables in cells.
+   - ``table-filter-chart`` — app only: a table, filtered, charted (3 steps).
      A rich cell compares as ``<type: summary>``, and its full view
      (``/api/cell``) must open as the right kind;
    - ``local-llm`` — app only, and only when Ollama is running with the model
@@ -96,6 +97,14 @@ RICH_CELLS = {
     "chart": (["value"], [["<plotly: bar chart · 1 trace · Readings per city>"]]),
 }
 
+#: table-filter-chart: load a table, keep the rows with n > 1, chart them —
+#: one Plotly figure from a whole table, via a reducer under collapse.
+TABLE_FILTER_CHART = {
+    "readings": (["city", "n"], [["SF", 1], ["NYC", 4], ["LA", 2], ["Austin", 5], ["Boston", 1], ["Denver", 3]]),
+    "big": (["city", "n"], [["NYC", 4], ["LA", 2], ["Austin", 5], ["Denver", 3]]),
+    "chart": (["value"], [["<plotly: bar chart · 1 trace · Readings above one>"]]),
+}
+
 #: What each rich cell's full view must be.
 VIEW_KINDS = {"image": "image", "plotly": "plotly", "table": "table", "json": "json", "text": "text"}
 
@@ -117,6 +126,7 @@ def main() -> int:
             ("all-orchestrations", core_outputs(), set()),
             ("resources", core_resource_outputs(), set(APP_ONLY)),
             ("rich-cells", RICH_CELLS, set(RICH_CELLS)),
+            ("table-filter-chart", TABLE_FILTER_CHART, set(TABLE_FILTER_CHART)),
             ("local-llm", None, set())):
         print(f"── {pipeline_id}")
         if expected is None and "local_llm" not in client.get("/api/resources/loaded").json():

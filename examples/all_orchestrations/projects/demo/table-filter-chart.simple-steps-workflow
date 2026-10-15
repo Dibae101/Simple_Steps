@@ -1,0 +1,32 @@
+{
+  "format_version": 2,
+  "id": "table-filter-chart",
+  "name": "Table, filter, chart",
+  "meta": {
+    "source": "app only: load a table, filter it, chart what is left",
+    "syntax": "core operation syntax, docs/dev_plan/120"
+  },
+  "steps": [
+    {
+      "name": "readings",
+      "expression": "to_rows[mod.source()](data='{\"city\": [\"SF\", \"NYC\", \"LA\", \"Austin\", \"Boston\", \"Denver\"], \"n\": [1, 4, 2, 5, 1, 3]}')",
+      "meta": {
+        "label": "readings"
+      }
+    },
+    {
+      "name": "big",
+      "expression": "is_big[mod.filter()](wf[\"readings\"])",
+      "meta": {
+        "label": "big"
+      }
+    },
+    {
+      "name": "chart",
+      "expression": "bar_chart[mod.collapse()](wf[\"big\"])",
+      "meta": {
+        "label": "chart"
+      }
+    }
+  ]
+}

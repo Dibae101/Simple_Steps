@@ -272,3 +272,24 @@ def city_chart(cities: list, counts: list):
     """
     import plotly.graph_objects as go
     return go.Figure(go.Bar(x=cities, y=counts), layout_title_text="Readings per city")
+
+
+@simple_step_tool(category="Rich cells")
+def bar_chart(acc, city: str, n: float):
+    """collapse: a Plotly bar chart of a whole table, one bar per row.
+
+    A reducer: core calls it once per row with the chart so far, so a table
+    from another step becomes one figure (needs plotly: pip install
+    simple-steps[media]).
+
+    Args:
+        acc: the chart so far — None for the first row.
+        city: the bar's label.
+        n: the bar's height.
+    """
+    import plotly.graph_objects as go
+    fig = acc if acc is not None else go.Figure(go.Bar(x=[], y=[]), layout_title_text="Readings above one")
+    bar = fig.data[0]
+    bar.x = (*bar.x, city)
+    bar.y = (*bar.y, n)
+    return fig

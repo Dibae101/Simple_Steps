@@ -12,12 +12,13 @@ dataset, and one step per step of core's workflow, each written as a formula.
 | [`projects/demo/all-orchestrations.simple-steps-workflow`](projects/demo/all-orchestrations.simple-steps-workflow) | the 44-step workflow: every shape verb |
 | [`projects/demo/resources.simple-steps-workflow`](projects/demo/resources.simple-steps-workflow) | the 11-step resources workflow: core's `build_resources()`, plus a ready-made resource |
 | [`projects/demo/rich-cells.simple-steps-workflow`](projects/demo/rich-cells.simple-steps-workflow) | 5 steps whose cells are images, tables and a Plotly chart (app only) |
+| [`projects/demo/table-filter-chart.simple-steps-workflow`](projects/demo/table-filter-chart.simple-steps-workflow) | 3 steps: load a table, filter it, chart what is left as a Plotly figure (app only) — the simplest place to start |
 | [`local_llm.py`](local_llm.py) | `OllamaLLM`: a real local model as a resource, loaded only if Ollama has it |
 | [`projects/demo/local-llm.simple-steps-workflow`](projects/demo/local-llm.simple-steps-workflow) | 3 steps that use the local model (needs Ollama) |
 | [`check.py`](check.py) | runs every workflow the way the UI does and compares every step with core |
 
 ```bash
-python examples/all_orchestrations/check.py        # 60/60 steps match simple-steps-core (63 with Ollama)
+python examples/all_orchestrations/check.py        # 63/63 steps match simple-steps-core (66 with Ollama)
 python examples/all_orchestrations/app.py          # serve it (or: simple-steps --workspace examples/all_orchestrations)
                                                     # open a workflow in the UI and press Run
 ```
@@ -131,6 +132,26 @@ thumbnail or a short summary (`16×16 RGB image`, `table 1×3`,
 `bar chart · 1 trace · Readings per city`); clicking the cell opens the full
 view. `bright` reads the images back with `brightness`, which gets the real
 array, never the thumbnail.
+
+## Table, filter, chart
+
+The shortest real workflow: three steps, each a different verb.
+
+| step | formula | what it does |
+|---|---|---|
+| `readings` | `to_rows[mod.source()](data='{"city": […], "n": […]}')` | loads a 6-row table |
+| `big` | `is_big[mod.filter()](wf["readings"])` | keeps the 4 rows with `n > 1` |
+| `chart` | `bar_chart[mod.collapse()](wf["big"])` | one Plotly bar chart of those rows |
+
+A tool that sees a whole table is a **reducer** under `collapse`:
+`bar_chart(acc, city, n)` is called once per row with the chart so far, and the
+last one is the step's value. Written `bar_chart[mod.auto()](wf["big"])`, the
+editor's default when you wire a step, it picks `collapse` by itself:
+`'acc' is not a column but 'city' is, so this reads as a reducer`.
+
+To load a CSV instead, make the first step
+`load_csv[mod.source()](filepath="/absolute/path/to/readings.csv")` — the path
+is read relative to where the server was started, so an absolute one is safest.
 
 ## A real local model (optional)
 
