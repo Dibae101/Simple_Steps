@@ -19,7 +19,8 @@ dataset, and one step per step of core's workflow, each written as a formula.
 
 ```bash
 python examples/all_orchestrations/check.py        # 63/63 steps match simple-steps-core (66 with Ollama)
-python examples/all_orchestrations/app.py          # serve it (or: simple-steps --workspace examples/all_orchestrations)
+                                                    #   outside a repo checkout: core comparisons skipped
+simple-steps run examples/all_orchestrations/app.py   # serve it (or: python examples/all_orchestrations/app.py)
                                                     # open a workflow in the UI and press Run
 ```
 
@@ -127,7 +128,7 @@ deployment* with a **Use** button.
 
 A cell can hold more than text: `rich-cells` returns an image per row
 (`swatch`, a numpy array), a table per row (`profile`), and a Plotly chart
-(`city_chart`, which needs `pip install simple-steps[media]`). The grid shows a
+(`city_chart`; Plotly is installed with Simple Steps). The grid shows a
 thumbnail or a short summary (`16×16 RGB image`, `table 1×3`,
 `bar chart · 1 trace · Readings per city`); clicking the cell opens the full
 view. `bright` reads the images back with `brightness`, which gets the real

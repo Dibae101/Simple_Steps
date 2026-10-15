@@ -81,23 +81,28 @@ stale install, and the force-reinstall above is the fix.
 
 ### Running the example
 
-`examples/tools.py` is **not shipped in the wheel** — only the `SIMPLE_STEPS`
-package is. A pip install gives you the 29 built-in tools, which is enough to
-confirm the install works:
+The examples ship with the package. Copy them out and run one, the way you'd
+run a Streamlit app:
 
 ```bash
-simple-steps                      # built-in tools only
+pip install "simple-steps @ git+https://github.com/stusynakowski/Simple_Steps.git"
+simple-steps --load-examples                          # copies them to ./examples
+simple-steps run examples/all_orchestrations/app.py   # serves that app, opens the browser
 ```
 
-To run the example application (its tools, resources, and three workflows),
-you need the repo:
+`simple-steps run <file>` serves the `App` the file builds, with the file's
+folder as the workspace: `--port`, `--host` and `--no-browser` win over any
+`app.serve()` call in the file. A file that only defines `@simple_step_tool`
+functions gets an `App` of those tools. The same command through the
+interpreter is `python -m simple_steps run app.py` (a module name can't hold a
+hyphen, so it's `simple_steps`, not `simple-steps`). Plotly comes with the
+install, so the chart examples run as they are.
 
-```bash
-git clone https://github.com/stusynakowski/Simple_Steps.git
-cd Simple_Steps
-pip install -e ".[media]"
-python examples/all_orchestrations/app.py     # or: simple-steps --workspace examples/all_orchestrations
-```
+`simple-steps` on its own still starts the server for the current folder, with
+the 29 built-in tools and any tools it discovers there.
+
+In this repo the examples live in `src/SIMPLE_STEPS/examples/`, so that the
+wheel carries them; `--load-examples` copies whatever that folder holds.
 
 
 ### Prerequisites
@@ -547,7 +552,8 @@ The `formula` field is the canonical source of truth — `operation_id` and `con
 Simple_Steps/
 ├── src/
 │   └── SIMPLE_STEPS/              # The pip-installable package
-│       ├── cli.py                 # `simple-steps` entry point
+│       ├── cli.py                 # `simple-steps` entry point: run, --load-examples
+│       ├── examples/              # Shipped examples; `simple-steps --load-examples` copies them
 │       ├── cli_dev.py             # `simple-steps-dev` — backend + Vite together
 │       ├── cli_local.py           # `simple-steps-local` desktop mode (pywebview)
 │       ├── build_frontend.py      # Bundle builder (python -m SIMPLE_STEPS.build_frontend)
@@ -574,9 +580,6 @@ Simple_Steps/
 │       └── utils/                 # formulaParser.ts
 ├── external/
 │   └── simple-steps-core/         # Submodule. The backend's heart; read-only here
-├── examples/
-│   ├── tools.py                   # The one example — the whole backend you write
-│   └── README.md
 ├── tests/                         # pytest tests
 │   └── fixtures/                  # Workflow fixtures + the PipelineRunner harness
 ├── docs/                          # Architecture, specs, ADRs, core proposals

@@ -5,6 +5,9 @@ Single entry point to start the full Simple Steps application
 (backend API + frontend UI).
 
 Usage:
+    simple-steps run app.py         # serve the App that app.py builds (like `streamlit run`)
+    python -m simple_steps run app.py   # the same, through the interpreter
+    simple-steps --load-examples    # copy the examples into ./examples
     simple-steps                    # start from cwd (workspace root)
     simple-steps --port 9000        # custom port
     simple-steps --host 0.0.0.0     # bind to all interfaces
@@ -22,6 +25,7 @@ will automatically discover:
 
 import argparse
 import os
+import shutil
 import sys
 import webbrowser
 import threading
@@ -32,6 +36,9 @@ import socket
 def _port_is_free(host: str, port: int) -> bool:
     """Return True if the given port is available to bind."""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        # As uvicorn binds: a port in TIME_WAIT just after a server stopped is
+        # free to it, while a live server's port still isn't.
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:
             s.bind((host, port))
             return True
@@ -101,10 +108,71 @@ def print_versions() -> None:
     print('      "git+https://github.com/stusynakowski/Simple_Steps.git"')
 
 
+def run_main(argv: list) -> int:
+    """``simple-steps run app.py`` — serve the App a Python file builds.
+
+    Like ``streamlit run``: the file's folder is its workspace, and the file is
+    imported rather than run, so the CLI's --port / --host / --no-browser win
+    over whatever ``app.serve()`` call the file makes for itself.
+    """
+    parser = argparse.ArgumentParser(
+        prog="simple-steps run",
+        description="Serve the Simple Steps App that a Python file builds.",
+    )
+    parser.add_argument("script", help="the app file, e.g. app.py")
+    parser.add_argument("--port", type=int, default=None, help="port (default: the App's, 8000)")
+    parser.add_argument("--host", type=str, default=None, help="host (default: the App's, 127.0.0.1)")
+    parser.add_argument("--no-browser", action="store_true", help="don't open the browser")
+    args = parser.parse_args(argv)
+
+    path = os.path.abspath(args.script)
+    if not os.path.isfile(path):
+        print(f"  ✗ No such file: {args.script}")
+        return 1
+    from .application import AppError, load_app_file
+    try:
+        app = load_app_file(path)
+    except AppError as exc:
+        print(f"  ✗ {exc}")
+        return 1
+    app.serve(host=args.host, port=args.port, open_browser=not args.no_browser)
+    return 0
+
+
+#: Where the examples ship: inside the package, so a pip install has them.
+EXAMPLES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "examples")
+
+
+def load_examples(dest_parent: str) -> int:
+    """Copy the bundled examples folder — whatever it holds — to <dest_parent>/examples."""
+    if not os.path.isdir(EXAMPLES_DIR):
+        print(f"  ✗ This install has no examples (looked in {EXAMPLES_DIR}).")
+        return 1
+    dest = os.path.join(os.path.abspath(dest_parent), "examples")
+    if os.path.exists(dest):
+        print(f"  ✗ {dest} already exists; move it aside to load a fresh copy.")
+        return 1
+    shutil.copytree(EXAMPLES_DIR, dest,
+                    ignore=shutil.ignore_patterns("__pycache__", "*.pyc", ".DS_Store"))
+    apps = sorted(
+        os.path.relpath(os.path.join(root, "app.py"), dest_parent)
+        for root, _dirs, files in os.walk(dest) if "app.py" in files
+    )
+    print(f"  ✓ Copied the examples to {dest}")
+    for app in apps:
+        print(f"    simple-steps run {app}")
+    return 0
+
+
 def main():
+    # `run` is a subcommand; everything else keeps the flags it always had.
+    if sys.argv[1:2] == ["run"]:
+        sys.exit(run_main(sys.argv[2:]))
+
     parser = argparse.ArgumentParser(
         prog="simple-steps",
-        description="Start the Simple Steps pipeline orchestrator",
+        description="Start the Simple Steps pipeline orchestrator. "
+                    "To serve an app file: simple-steps run app.py",
     )
     parser.add_argument(
         "--port", type=int, default=8000,
@@ -113,6 +181,10 @@ def main():
     parser.add_argument(
         "--host", type=str, default="127.0.0.1",
         help="Host to bind to (default: 127.0.0.1)",
+    )
+    parser.add_argument(
+        "--load-examples", action="store_true",
+        help="Copy the bundled examples folder into the current directory, then exit.",
     )
     parser.add_argument(
         "--version", action="store_true",
@@ -154,6 +226,9 @@ def main():
     if args.version:
         print_versions()
         return
+
+    if args.load_examples:
+        sys.exit(load_examples(os.getcwd()))
 
     # ── Delegate to native desktop mode if --local ───────────────────────
     if args.local:

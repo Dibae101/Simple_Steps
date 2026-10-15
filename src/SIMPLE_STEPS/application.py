@@ -183,14 +183,47 @@ def load_app(workspace: str) -> Optional[App]:
     """The App this process serves: :data:`CURRENT` if one was built already
     (``python app.py``), else the one ``<workspace>/app.py`` builds, else None.
     """
-    global CURRENT
     if CURRENT is not None:
         return CURRENT
     path = app_file(workspace)
     if path is None:
         return None
-    if workspace not in sys.path:
-        sys.path.insert(0, workspace)   # so app.py can `import my_tools`
+    _import_app_file(path)
+    if CURRENT is None:
+        print(f"  ⚠️  {path} defines no App; discovering tools in the workspace instead.")
+    return CURRENT
+
+
+def load_app_file(path: str) -> App:
+    """The App the Python file at *path* builds — ``simple-steps run app.py``.
+
+    The file is imported as a module, not run as ``__main__``, so its own
+    ``if __name__ == "__main__": app.serve()`` doesn't fire: the CLI serves it,
+    with the CLI's host and port. A file that registers tools but builds no
+    App gets one for its folder, listing those tools.
+    """
+    global CURRENT
+    path = os.path.abspath(path)
+    module = _import_app_file(path)
+    if CURRENT is None:
+        folder = os.path.dirname(path)
+        name = os.path.splitext(os.path.basename(path))[0]
+        try:
+            CURRENT = App(tools=[module], workspace=folder, title=name)
+        except AppError:
+            raise AppError(
+                f"{path} builds no App and has no @simple_step_tool functions. "
+                "Add `app = App(tools=[...])`, or decorate a function with @simple_step_tool"
+            ) from None
+    return CURRENT
+
+
+def _import_app_file(path: str) -> types.ModuleType:
+    """Import *path* as ``simple_steps_app``; the App it builds becomes CURRENT."""
+    global CURRENT
+    folder = os.path.dirname(os.path.abspath(path))
+    if folder not in sys.path:
+        sys.path.insert(0, folder)   # so app.py can `import my_tools`
     spec = importlib.util.spec_from_file_location("simple_steps_app", path)
     module = importlib.util.module_from_spec(spec)
     sys.modules["simple_steps_app"] = module
@@ -199,9 +232,7 @@ def load_app(workspace: str) -> Optional[App]:
         built = [v for v in vars(module).values() if isinstance(v, App)]
         CURRENT = getattr(module, "app", None) if isinstance(getattr(module, "app", None), App) \
             else (built[0] if built else None)
-    if CURRENT is None:
-        print(f"  ⚠️  {path} defines no App; discovering tools in the workspace instead.")
-    return CURRENT
+    return module
 
 
 # ─────────────────────────────────────────────────────────────────────────────

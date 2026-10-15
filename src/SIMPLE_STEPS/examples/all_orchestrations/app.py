@@ -1,7 +1,8 @@
 """
 app.py — this workspace as a Simple Steps application (docs/dev_plan/122 §1).
 
-    python examples/all_orchestrations/app.py            # serve it
+    simple-steps run examples/all_orchestrations/app.py  # serve it, like `streamlit run`
+    python examples/all_orchestrations/app.py            # the same, via app.serve() below
     simple-steps --workspace examples/all_orchestrations # the same: the server
                                                           # finds this file
 

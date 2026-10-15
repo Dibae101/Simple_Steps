@@ -264,7 +264,7 @@ def profile(city: str, n: int) -> pd.DataFrame:
 
 @simple_step_tool(category="Rich cells")
 def city_chart(cities: list, counts: list):
-    """A Plotly bar chart (needs the `media` extra: pip install simple-steps[media]).
+    """A Plotly bar chart (Plotly is installed with Simple Steps).
 
     Args:
         cities: the bars' labels.
@@ -279,8 +279,7 @@ def bar_chart(acc, city: str, n: float):
     """collapse: a Plotly bar chart of a whole table, one bar per row.
 
     A reducer: core calls it once per row with the chart so far, so a table
-    from another step becomes one figure (needs plotly: pip install
-    simple-steps[media]).
+    from another step becomes one figure.
 
     Args:
         acc: the chart so far — None for the first row.

@@ -38,6 +38,9 @@ dependencies = [
     "numpy>=1.26.0",
     "importlib-metadata>=4.0; python_version<'3.10'",
     "websockets>=12.0",
+    # Plotly figures are a cell type the UI draws interactively; the examples
+    # chart with it, so it is installed by default rather than as an extra.
+    "plotly>=5.0",
 ]
 
 [project.optional-dependencies]
@@ -57,10 +60,10 @@ agent-ollama = [
 desktop = [
     "pywebview>=5.0",
 ]
-# Rich cell types (docs/dev_plan/122 S4): Plotly figures and Pillow images get
-# their own cell views. Optional — numpy image arrays work without either.
+# Rich cell types (docs/dev_plan/122 S4): Pillow images get their own cell
+# view. Optional — numpy image arrays work without it.
 media = [
-    "plotly>=5.0",
+    # Plotly is a regular dependency now; `[media]` adds Pillow image cells.
     "pillow>=10.0",
 ]
 dev = [
@@ -88,13 +91,20 @@ simple-steps-build = "SIMPLE_STEPS.build_frontend:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
+# `python -m simple_steps run app.py` (a module name can't hold a hyphen).
+py-modules = ["simple_steps"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
 include = ["SIMPLE_STEPS*"]
 
 [tool.setuptools.package-data]
-SIMPLE_STEPS = ["frontend_dist/**/*"]
+# examples/ ships whole, whatever it holds: `simple-steps --load-examples`
+# copies it into the working directory.
+SIMPLE_STEPS = ["frontend_dist/**/*", "examples/**/*"]
+
+[tool.setuptools.exclude-package-data]
+SIMPLE_STEPS = ["examples/**/__pycache__/*", "examples/**/*.pyc", "examples/**/.DS_Store"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

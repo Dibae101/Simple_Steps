@@ -23,7 +23,10 @@ check.py — run the workflow the way the UI does, and compare with core.
    previous step's output as input, a step map keyed by id, label and the
    positional ``stepN`` alias, and the workflow's ``resources`` section.
 4. Compares every step's output with simple-steps-core's own run of
-   ``examples/all_orchestrations/pipeline.py`` (from the submodule).
+   ``examples/all_orchestrations/pipeline.py`` (from the submodule). Outside a
+   checkout of the Simple_Steps repo — say, a copy from
+   ``simple-steps --load-examples`` — core's example isn't there, so those
+   comparisons are skipped and the app-only workflows are still checked.
 
 Exits non-zero if any step differs from core.
 """
@@ -38,8 +41,19 @@ import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-REPO = HERE.parents[1]
-CORE_EXAMPLE = REPO / "external" / "simple-steps-core" / "examples" / "all_orchestrations"
+
+
+def _core_example():
+    """Core's example folder, from the repo this file sits in — wherever in it
+    that is — or None outside a checkout."""
+    for parent in HERE.parents:
+        found = parent / "external" / "simple-steps-core" / "examples" / "all_orchestrations"
+        if found.is_dir():
+            return found
+    return None
+
+
+CORE_EXAMPLE = _core_example()
 
 os.environ["SIMPLE_STEPS_WORKSPACE"] = str(HERE)
 os.environ.setdefault("SIMPLE_STEPS_ENGINE", "grid")
@@ -115,20 +129,33 @@ def _table(frame) -> tuple:
 
 
 def main() -> int:
-    with contextlib.redirect_stdout(io.StringIO()):
-        from fastapi.testclient import TestClient
-        import SIMPLE_STEPS.main as app_main
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            from fastapi.testclient import TestClient
+            import SIMPLE_STEPS.main as app_main
+    except RuntimeError as exc:
+        # A plain `pip install simple-steps` lacks the HTTP client the test
+        # client needs; Starlette's message names it.
+        print("check.py drives the app through Starlette's test client, which needs "
+              f"one more package:\n\n{exc}")
+        return 2
     client = TestClient(app_main.app)
     client.get("/api/session")
 
     total = differ = 0
+    # Core's own run is what the first two compare with; it needs the repo.
+    with_core = CORE_EXAMPLE is not None
     for pipeline_id, expected, app_only in (
-            ("all-orchestrations", core_outputs(), set()),
-            ("resources", core_resource_outputs(), set(APP_ONLY)),
+            ("all-orchestrations", core_outputs() if with_core else "core", set()),
+            ("resources", core_resource_outputs() if with_core else "core", set(APP_ONLY)),
             ("rich-cells", RICH_CELLS, set(RICH_CELLS)),
             ("table-filter-chart", TABLE_FILTER_CHART, set(TABLE_FILTER_CHART)),
             ("local-llm", None, set())):
         print(f"── {pipeline_id}")
+        if expected == "core":
+            print("SKIP  compared with core's own example, which is in a checkout of the "
+                  "Simple_Steps repo (external/simple-steps-core), not here\n")
+            continue
         if expected is None and "local_llm" not in client.get("/api/resources/loaded").json():
             print("SKIP  the local model isn't loaded (see local_llm.py: Ollama, ollama pull …)\n")
             continue

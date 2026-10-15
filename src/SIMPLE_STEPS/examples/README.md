@@ -6,6 +6,7 @@ there. Use it to install the app, confirm it runs, and find out what breaks.
 
 ```bash
 python tools.py        # registers the tools, starts the server + UI
+simple-steps run tools.py   # the same: a file of tools is served as an App of them
 ```
 
 Each tool is a plain Python function with a `@simple_step_tool` decorator. The

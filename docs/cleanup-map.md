@@ -180,6 +180,7 @@ All corrected against what is actually on disk.
 | `build_frontend.source_hash` now skips `*.test.*` and `setupTests.ts` | Tests never ship, so editing one no longer marks the bundle stale |
 | `App.test.tsx`, `MainLayout.test.tsx` | Were red: their `api` mocks predated `fetchResourceTypes` and others. Now partial mocks over the real module, with `fetch` stubbed |
 | `dev_plan/200` | Status, endpoints, file extension and test baseline corrected; every packs item cut |
+| `examples/` → `src/SIMPLE_STEPS/examples/` | Moved into the package so the wheel ships it (package-data can't reach outside the package). `simple-steps --load-examples` copies whatever it holds into the working directory; `simple-steps run app.py` serves one. Older docs that name `examples/…` describe where it was |
 
 ---
 

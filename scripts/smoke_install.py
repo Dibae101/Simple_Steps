@@ -167,6 +167,45 @@ def main() -> int:
             report(f"console script `{script}` runs", s.returncode == 0,
                    (s.stderr or s.stdout)[-200:])
 
+        # ── 6b. the Streamlit-style commands, as a user meets them ──────
+        m = run([py, "-m", "simple_steps", "--help"], cwd=str(work))
+        report("`python -m simple_steps` runs", m.returncode == 0, (m.stderr or m.stdout)[-200:])
+        user = work / "user"
+        user.mkdir()
+        cli = str(venv_bin(venv, "simple-steps"))
+        le = run([cli, "--load-examples"], cwd=str(user))
+        apps = sorted((user / "examples").rglob("app.py"))
+        report("`simple-steps --load-examples` copies the examples", le.returncode == 0 and bool(apps),
+               (le.stderr or le.stdout)[-300:])
+        if apps:
+            run_port = args.port + 1
+            with open(work / "run.log", "w") as log:
+                app_server = subprocess.Popen(
+                    [cli, "run", str(apps[0].relative_to(user)), "--no-browser", "--port", str(run_port)],
+                    cwd=str(user), stdout=log, stderr=subprocess.STDOUT,
+                )
+            served = []
+            try:
+                for _ in range(60):
+                    if app_server.poll() is not None:
+                        break
+                    try:
+                        status, body = http_get(f"http://127.0.0.1:{run_port}/api/operations", timeout=1.0)
+                        if status == 200:
+                            served = json.loads(body)
+                            break
+                    except Exception:
+                        pass
+                    time.sleep(0.5)
+            finally:
+                app_server.terminate()
+                app_server.wait(timeout=10)
+            # The example's own tools prove its app.py was the App served.
+            own = [o for o in served if o.get("category") not in (None, "", "Core verbs", "Orchestration")
+                   and not str(o.get("id", "")).startswith("ss_")]
+            report(f"`simple-steps run {apps[0].relative_to(user)}` serves its App on --port",
+                   bool(served) and bool(own), (work / "run.log").read_text()[-600:])
+
         # ── 7. serve ────────────────────────────────────────────────────
         base = f"http://127.0.0.1:{args.port}"
         logfile = work / "server.log"
