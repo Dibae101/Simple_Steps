@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { Step } from '../types/models';
 import {
   fetchLoadedResources,
@@ -57,6 +58,9 @@ export default function ResourcesMenu({ resources, steps, onDefine, onRemove }: 
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  // Where the panel opens, in viewport pixels: just under the trigger.
+  const [anchor, setAnchor] = useState({ top: 0, left: 0 });
 
   const entries = Object.entries(resources ?? {}) as [string, ResourceDeclaration][];
   const typesKnown = Object.keys(types).length > 0;
@@ -73,7 +77,8 @@ export default function ResourcesMenu({ resources, steps, onDefine, onRemove }: 
   useEffect(() => {
     if (!open) return;
     const close = (e: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
+      const t = e.target as Node;
+      if (!rootRef.current?.contains(t) && !panelRef.current?.contains(t)) setOpen(false);
     };
     const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
     document.addEventListener('mousedown', close);
@@ -182,7 +187,11 @@ export default function ResourcesMenu({ resources, steps, onDefine, onRemove }: 
     <div className="ut-group" ref={rootRef}>
       <button
         className={`ut-dropdown-trigger ${open ? 'active' : ''}`}
-        onClick={() => setOpen((v) => !v)}
+        onClick={(e) => {
+          const r = e.currentTarget.getBoundingClientRect();
+          setAnchor({ top: r.bottom + 6, left: r.left });
+          setOpen((v) => !v);
+        }}
         title={'This workflow\'s resources: objects steps use with res["name"]'}
       >
         <span>Resources</span>
@@ -191,8 +200,17 @@ export default function ResourcesMenu({ resources, steps, onDefine, onRemove }: 
         <span className="ut-caret">▾</span>
       </button>
 
-      {open && (
-        <div className="ut-dropdown-panel ut-resources-panel">
+      {/* Portalled out of the header: its pane clips overflow, which hid
+          everything below the toolbar's bottom edge. */}
+      {open && createPortal(
+        <div
+          ref={panelRef}
+          className="ut-dropdown-panel ut-resources-panel"
+          style={{
+            position: 'fixed', top: anchor.top, left: anchor.left,
+            maxHeight: `calc(100vh - ${anchor.top + 16}px)`, overflowY: 'auto',
+          }}
+        >
           <div className="ut-panel-title">Resources in this workflow</div>
 
           {entries.length === 0 && editing === null && (
@@ -302,7 +320,8 @@ export default function ResourcesMenu({ resources, steps, onDefine, onRemove }: 
           )}
 
           {error && <div className="ut-resource-error">{error}</div>}
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

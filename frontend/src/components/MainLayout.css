@@ -263,6 +263,10 @@
   position: relative;
   z-index: 10;
   flex-shrink: 0;
+  /* Fill the Allotment pane so a collapsed pane clips the toolbar off the
+     bottom, rather than the pane and its contents disagreeing on height. */
+  height: 100%;
+  box-sizing: border-box;
 }
 
 .system-tools-row {
@@ -389,6 +393,14 @@
   height: 2px;
   background: #555;
   border-radius: 1px;
+}
+
+/* Allotment draws its sashes at z-index 35 and .main-content sits at 50 in the
+   same stacking context, so the canvas covered the lower half of each sash in
+   this column — grabbing the bar under the toolbar usually caught a step
+   header instead. */
+.content-area .sash {
+  z-index: 60;
 }
 
 .main-content {

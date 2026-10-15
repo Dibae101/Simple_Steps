@@ -28,9 +28,14 @@ import './MainLayout.css';
 // in-memory for the session; durable persistence is a follow-up (S4 settings).
 const DEFAULT_LEFT_SIDEBAR_WIDTH = 250;
 const DEFAULT_RIGHT_SIDEBAR_WIDTH = 300;
-const DEFAULT_HEADER_HEIGHT = 110;
-const MIN_HEADER_HEIGHT = 44;
-const MAX_HEADER_HEIGHT = 600;
+// The header pane has two heights. Dragging its sash up hides the toolbar so
+// the steps reach the file tabs; dragging down shows it again, and no further —
+// there is nothing below the toolbar to reveal. Allotment reads min/max only
+// when the pane is created, so these are summed from the CSS rather than
+// measured: menubar 30 (MenuBar.css) + tabs 35 (WorkflowTabs.css) + the
+// header's 1px border, then the toolbar 36 (UnifiedToolbar.css) + grip 4.
+const HEADER_COLLAPSED_HEIGHT = 66;
+const HEADER_EXPANDED_HEIGHT = 106;
 const SIDEBAR_SNAP_THRESHOLD = 80; // dragging below this pixel width collapses the pane
 const DEFAULT_LOG_HEIGHT = 220;
 // The log's header is 36px; collapsing clamps the pane to exactly that, so the
@@ -78,7 +83,7 @@ export default function MainLayout() {
   const preCollapseLogHeight = useRef<number>(DEFAULT_LOG_HEIGHT);
   // The header's height as the user last left it, captured immediately before
   // a log toggle so the toggle can put it back. See pinHeaderAfterPaneChange.
-  const headerHeight = useRef<number>(DEFAULT_HEADER_HEIGHT);
+  const headerHeight = useRef<number>(HEADER_EXPANDED_HEIGHT);
 
   const {
     workflow,
@@ -513,8 +518,8 @@ export default function MainLayout() {
   }, [rememberHeaderHeight]);
 
   // Adding or removing the log pane makes Allotment redistribute that height
-  // across the remaining panes, and the header — which allows up to
-  // MAX_HEADER_HEIGHT — absorbs most of it. Measured: opening the log grew the
+  // across the remaining panes, and the header could absorb most of it while
+  // it allowed up to 600px. Measured then: opening the log grew the
   // header pane 110px -> 300px, pushing the steps down ~190px and leaving them
   // there after the log was closed again. Allotment offers no "don't touch this
   // pane" option, so pin the header back to the height the user left it at and
@@ -524,12 +529,24 @@ export default function MainLayout() {
     const sizes = centerSizes.current;
     if (!split || sizes.length < 2) return;
     const total = sizes.reduce((a, b) => a + b, 0);
-    const header = Math.min(headerHeight.current, MAX_HEADER_HEIGHT);
+    const header = Math.min(headerHeight.current, HEADER_EXPANDED_HEIGHT);
     const log = sizes.length >= 3 ? sizes[2] : 0;
     const canvas = total - header - log;
     if (canvas <= 0) return;
     split.resize(sizes.length >= 3 ? [header, canvas, log] : [header, canvas]);
   }, [isLogOpen, logMode]);
+
+  // Between the two heights the toolbar would show half-cut, so on release
+  // snap to whichever is nearer and give the difference to the canvas.
+  const snapHeader = useCallback((sizes: number[]) => {
+    const split = centerSplitRef.current;
+    const [h, canvas, ...rest] = sizes;
+    if (!split || h === undefined || canvas === undefined) return;
+    const mid = (HEADER_COLLAPSED_HEIGHT + HEADER_EXPANDED_HEIGHT) / 2;
+    const next = h < mid ? HEADER_COLLAPSED_HEIGHT : HEADER_EXPANDED_HEIGHT;
+    headerHeight.current = next;
+    if (next !== h) split.resize([next, canvas + h - next, ...rest]);
+  }, []);
 
   // ── Allotment pane-size handlers ──────────────────────────────────────
   // Snap to "collapsed" when the user drags the divider very small, so the
@@ -743,11 +760,12 @@ export default function MainLayout() {
                 proportionalLayout={false}
                 ref={centerSplitRef}
                 onChange={handleCenterSizes}
+                onDragEnd={snapHeader}
               >
                 <Allotment.Pane
-                  preferredSize={DEFAULT_HEADER_HEIGHT}
-                  minSize={MIN_HEADER_HEIGHT}
-                  maxSize={MAX_HEADER_HEIGHT}
+                  preferredSize={HEADER_EXPANDED_HEIGHT}
+                  minSize={HEADER_COLLAPSED_HEIGHT}
+                  maxSize={HEADER_EXPANDED_HEIGHT}
                 >
                   {headerBlock}
                 </Allotment.Pane>
