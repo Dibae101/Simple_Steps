@@ -178,7 +178,7 @@ Most table tools take a DataFrame, so for them the schema carries no types, no
 enums and no required flags — and `input_schema` is what grounds the agent
 layer. So both the dropdown and the validator read the function's resolved
 annotations instead. Recorded as §J in
-[`docs/core-proposals/003-app-adoption.md`](../docs/core-proposals/003-app-adoption.md).
+[`docs/core-proposals/008-core-changes.md`](../docs/core-proposals/008-core-changes.md).
 
 ## Uninstalling
 

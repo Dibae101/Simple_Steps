@@ -6,7 +6,7 @@ core_bridge.py — the seam between this app and ``simple_steps_core``
 the tool contracts (:class:`ToolDefinition` / :class:`ToolParam`), resources
 and the engine. **This repo never edits core.** Where core cannot yet express
 something we need, the gap is shimmed here and recorded in
-``docs/core-proposals/003-app-adoption.md``.
+``docs/core-proposals/008-core-changes.md``.
 
 Every shim below is tagged with the proposal section that removes it::
 

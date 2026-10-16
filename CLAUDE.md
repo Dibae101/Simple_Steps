@@ -7,7 +7,7 @@ Hard invariants (details and commands in docs/context.md):
 
 - `simple_steps_core` is the backend's heart and `external/simple-steps-core/`
   is READ-ONLY. Shim gaps only in `src/SIMPLE_STEPS/core_bridge.py`, tag them
-  `SHIM(core §X)`, and record them in `docs/core-proposals/003-app-adoption.md`.
+  `SHIM(core §X)`, and record them in `docs/core-proposals/008-core-changes.md`.
 - Verify claims about core by RUNNING it, never by reading its docs. Doc-based
   claims have been wrong here.
 - The core pin in `pyproject.toml` and the `external/simple-steps-core`

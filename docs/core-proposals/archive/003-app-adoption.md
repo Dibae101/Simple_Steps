@@ -1,5 +1,7 @@
 # Proposal: what core needs before the app can adopt `App`
 
+> **Archived. Superseded by [`008-core-changes.md`](../008-core-changes.md).** Kept for history.
+
 > **For `simple-steps-core`.** Written against `52092ba`, **re-verified against
 > `1c30e03`** (2026-10-01). Status: proposal, not agreed. Companion to
 > `external/simple-steps-core/docs/app-config.md`,

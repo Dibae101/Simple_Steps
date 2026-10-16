@@ -1,5 +1,7 @@
 # 005 — Every change the app needs from simple-steps-core
 
+> **Archived. Superseded by [`008-core-changes.md`](../008-core-changes.md).** Kept for history.
+
 > **For `simple-steps-core`.** Status: proposal. First checked against core
 > `d8b6979` on 2026-10-05; **re-checked against `c73f6f8` on 2026-10-06**:
 > K10 is done, K11 regressed, the other 16 are unchanged (see "Re-check at

@@ -3,7 +3,7 @@
 > Working doc. Tracks the five updates against `simple_steps_core` as the
 > backend's heart. Core is **read-only** from this repo: gaps are shimmed in
 > `src/SIMPLE_STEPS/core_bridge.py` and recorded in
-> [`core-proposals/003-app-adoption.md`](core-proposals/003-app-adoption.md).
+> [`core-proposals/008-core-changes.md`](core-proposals/008-core-changes.md).
 >
 > Last verified: 2026-09-30, core submodule `52092ba`.
 

@@ -1,5 +1,7 @@
 # Proposal: selection verbs in the grid model
 
+> **Archived. Superseded by [`008-core-changes.md`](../008-core-changes.md).** Kept for history.
+
 > **For `simple-steps-core`.** Written against submodule `52092ba`.
 > Status: proposal, not agreed. Companion to
 > `external/simple-steps-core/docs/shape-algebra.md`, whose vocabulary and

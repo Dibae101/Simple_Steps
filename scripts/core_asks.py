@@ -1,5 +1,5 @@
 """
-core_asks.py — check every open ask in docs/core-proposals/005-core-changes.md
+core_asks.py — check every open ask in docs/core-proposals/008-core-changes.md
 against the installed simple-steps-core.
 
     python scripts/core_asks.py
@@ -221,7 +221,7 @@ def k13_catalog_takes_tool():
 
 def k14_progress_callback():
     params = inspect.signature(grid.Workflow.run).parameters
-    return any(p not in ("self", "step_id", "tools") for p in params), f"Workflow.run{inspect.signature(grid.Workflow.run)}"
+    return any(p not in ("self", "step_id", "tools", "resources") for p in params), f"Workflow.run{inspect.signature(grid.Workflow.run)}"
 
 
 def k15_redrive():

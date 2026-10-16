@@ -23,7 +23,7 @@ cannot do something we need:
 
 1. Shim it in `src/SIMPLE_STEPS/core_bridge.py` — nowhere else.
 2. Tag the shim `SHIM(core §X)` with the section it corresponds to.
-3. Record the gap in `docs/core-proposals/003-app-adoption.md`, with the
+3. Record the gap in `docs/core-proposals/008-core-changes.md`, with the
    evidence: what you ran, and what it returned.
 
 The point of keeping every shim in one file with a tag is that each one is

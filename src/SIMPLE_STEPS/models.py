@@ -112,7 +112,7 @@ class OperationDefinition(BaseModel):
     params: List[OperationParam]
     # ── Contract fields sourced from simple_steps_core's ToolDefinition ──
     # See core_bridge.core_contract(). `returns` and per-param descriptions
-    # are shimmed locally — docs/core-proposals/003-app-adoption.md §A/§B/§E.
+    # are shimmed locally — docs/core-proposals/008-core-changes.md C3.
     returns: Optional[OperationReturn] = None
     # The resource this tool is bound to, if any ('reshape', 'file_system', …).
     resource: Optional[str] = None

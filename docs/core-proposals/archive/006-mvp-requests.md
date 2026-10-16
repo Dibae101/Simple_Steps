@@ -1,5 +1,7 @@
 # 006 — What the MVP needs from simple-steps-core
 
+> **Archived. Superseded by [`008-core-changes.md`](../008-core-changes.md).** Kept for history.
+
 > **For `simple-steps-core`.** Status: slices 1–2 **built** in core `a799d0e`
 > and adopted by the app (see the reply below). Every "Today" line further down
 > was produced by running core at `66afce2`, before those slices.

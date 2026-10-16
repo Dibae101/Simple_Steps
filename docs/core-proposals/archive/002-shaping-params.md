@@ -1,5 +1,7 @@
 # Shaping and mapping parameters — the current surface
 
+> **Archived. Superseded by [`008-core-changes.md`](../008-core-changes.md).** Kept for history.
+
 > Reference, not proposal. Every signature and every `meta` value below was
 > read off `grid.py` at submodule `52092ba` by running it, not transcribed.
 > Written to support the open decision in
