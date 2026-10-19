@@ -269,8 +269,8 @@ def simple_step(name: str = None, category: str = "General", operation_type: str
 # simple_step_tool — the core-backed decorator                                #
 # --------------------------------------------------------------------------- #
 
-# core's ToolParam.type_name is a human-readable annotation ("str", "int",
-# "DataFrame"). The UI needs its own coarser vocabulary for form widgets.
+# Core's type name for a parameter ("str", "int", "DataFrame"; a Literal is
+# already its values' type) -> the UI's coarser widget vocabulary.
 _UI_TYPE_BY_ANNOTATION = {
     "int": "number", "float": "number", "complex": "number",
     "bool": "boolean",
@@ -280,27 +280,9 @@ _UI_TYPE_BY_ANNOTATION = {
 }
 
 
-# JSON Schema type -> the UI's widget vocabulary. Used to resolve annotations
-# whose Python name says nothing useful, above all "Literal": the values decide
-# the type, so Literal["a","b"] is a string and Literal[1,2] a number.
-_UI_TYPE_BY_SCHEMA = {
-    "string": "string", "integer": "number", "number": "number",
-    "boolean": "boolean", "array": "list", "object": "object",
-}
-
-
-def _ui_type(type_name: str, schema_type: str = None) -> str:
-    """
-    Map a core annotation name onto the UI's widget type.
-
-    ``schema_type`` is the JSON Schema type core derived for the same
-    parameter. It wins when the annotation name is uninformative — a
-    ``Literal`` reports its name as just "Literal", which would otherwise
-    fall through to "string" and mistype ``Literal[1, 2]``.
-    """
+def _ui_type(type_name: str) -> str:
+    """Map core's type name for a parameter onto the UI's widget type."""
     base = (type_name or "").split("[")[0].strip()
-    if base in ("Literal", "Any", "", "Optional", "Union") and schema_type:
-        return _UI_TYPE_BY_SCHEMA.get(schema_type, "string")
     if base in _UI_TYPE_BY_ANNOTATION:
         return _UI_TYPE_BY_ANNOTATION[base]
     lowered = base.lower()
@@ -372,8 +354,7 @@ def simple_step_tool(
         op_name = name or func.__name__.replace("_", " ").title()
         op_id = id or func.__name__
 
-        # Core registers the tool and derives the contract; core_bridge fills
-        # the fields core cannot express yet (see its module docstring).
+        # Core registers the tool and derives the contract (core_bridge).
         contract = core_contract(
             func,
             op_id,
@@ -386,7 +367,7 @@ def simple_step_tool(
         params = [
             OperationParam(
                 name=p["name"],
-                type=_ui_type(p["type_name"], p.get("schema_type")),
+                type=_ui_type(p["type_name"]),
                 description=p["description"],
                 default=p["default"],
                 required=p["required"],
@@ -406,7 +387,6 @@ def simple_step_tool(
             returns=OperationReturn(
                 type=contract.output_type,
                 form=contract.output_form,
-                description=contract.output_description,
             ),
             resource=contract.resource,
             dependencies=contract.dependencies,

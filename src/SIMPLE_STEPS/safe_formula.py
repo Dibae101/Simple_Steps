@@ -232,46 +232,22 @@ def _node_range(node: ast.AST) -> Tuple[Optional[int], Optional[int]]:
     return col, end
 
 
-def _resolved_hints(func) -> Dict[str, Any]:
+def _literal_choices(func) -> Dict[str, list]:
     """
-    *func*'s type hints with string annotations resolved.
+    The allowed values of each ``Literal`` parameter of *func*, from core's
+    catalog entry (``choices``; ``Optional[Literal[...]]`` included).
 
-    ``inspect.signature`` reports the raw annotation, which is a *string* in any
-    module using ``from __future__ import annotations`` — as the example's
-    ``tools.py`` does. Reading ``param.annotation`` therefore sees
-    ``"Literal['a','b']"`` and learns nothing. ``get_type_hints`` evaluates it.
-
-    Never raises: an unresolvable annotation yields no hints, so validation
+    Never raises: a tool core can't describe yields no choices, so validation
     simply checks less rather than failing.
     """
+    from simple_steps_core import grid
+
+    raw = getattr(func, "_raw_func", func)
     try:
-        from typing import get_type_hints
-        return get_type_hints(getattr(func, "_raw_func", func))
+        entry = grid.tool_entry(getattr(raw, "__name__", "tool"), raw, "declared")
     except Exception:
         return {}
-
-
-def _literal_choices(hint: Any) -> Optional[tuple]:
-    """
-    The allowed values of a ``Literal`` hint, or None if it is not one.
-
-    Reads the annotation rather than the derived JSON Schema: that schema is
-    empty for any tool taking a DataFrame (see core_bridge, SHIM core §J), and
-    most table tools take one. Looks through ``Optional[Literal[...]]``.
-    """
-    import typing
-
-    if hint is None or hint is inspect.Parameter.empty:
-        return None
-
-    origin = typing.get_origin(hint)
-    if origin is typing.Literal:
-        return typing.get_args(hint)
-    if origin is typing.Union:
-        for arg in typing.get_args(hint):
-            if typing.get_origin(arg) is typing.Literal:
-                return typing.get_args(arg)
-    return None
+    return {p["name"]: p["choices"] for p in entry["params"] if p.get("choices")}
 
 
 def _signature_diagnostics(
@@ -325,11 +301,11 @@ def _signature_diagnostics(
     #
     # Only literal constants are checked. A step reference or an expression is
     # not knowable until the step runs, and guessing would invent errors.
-    hints = _resolved_hints(func)
+    choices = _literal_choices(func)
     for kw in call.keywords:
         if not kw.arg or kw.arg not in params:
             continue
-        allowed = _literal_choices(hints.get(kw.arg))
+        allowed = choices.get(kw.arg)
         if not allowed:
             continue
         node = kw.value

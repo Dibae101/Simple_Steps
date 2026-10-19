@@ -1,7 +1,9 @@
 # 008 — Every change the app needs from simple-steps-core
 
 > **For `simple-steps-core`.** Status: proposal. Every "Today" line was
-> produced by **running** core at `a799d0e` (the current pin) on 2026-10-15.
+> produced by **running** core at `a799d0e` on 2026-10-15. The pin is now
+> `9a86a0d`; see [Status at 9a86a0d](#status-at-9a86a0d) for what that closed,
+> and C17–C19 for what it opened.
 >
 > **This is the only list.** It merges every open item from the app's
 > proposals 001–006 (now in [`archive/`](archive/)) and the core asks in
@@ -12,11 +14,58 @@
 ## How to check progress
 
 ```bash
-python scripts/core_asks.py      # one probe per K-item: OPEN / DONE
+python scripts/core_asks.py      # one probe per ask: OPEN / DONE
 ```
 
-The other items don't have probes yet. Each "Done when" line is written so it
-can become one.
+The K items, plus core's probes for the C/N/O items (marked "(core)"). C8,
+C15, C16, C17–C19, R3–R9 have no probe yet. Each "Done when" line is written
+so it can become one.
+
+## Status at 9a86a0d
+
+Core replied in its own `docs/core-proposals/008-status.md`. Its claims were
+checked by **running** core at `9a86a0d` on 2026-10-19, not by reading that
+reply:
+
+- `python external/simple-steps-core/scripts/core_asks.py` → **34/38 done**.
+  Open: K14, K15, K16, K18.
+- The app's own probes (one per shim, through `/api/run`, `/api/operations`,
+  `/api/infer_verb`, `/api/format_formula`), and
+  `examples/all_orchestrations/check.py` → 63/63 steps match core's run.
+
+**Shims deleted from `core_bridge.py`**, each replaced by core's function:
+
+| Tag | Replaced by |
+|---|---|
+| `SHIM(core §A)`, `§B`, `§E`, `§J` (docstring parser, annotation readers, `x-form`) | `grid.tool_entry()`: `description`, `type`, `choices`, `returns`, even for a tool taking a `DataFrame` |
+| `SHIM(core §K)` (whole-table tools on the legacy orchestrator) | `mod.table()`; the UI's `dataframe` mode and `f(df: pd.DataFrame)` tools run under it |
+| `SHIM(core §L)` (a value from another step on the legacy path) | a `$ref` argument; a column for a `list` parameter is `{"$ref": s, "columns": {"names": [c]}}` |
+| `SHIM(core §M)` (`inferable_method`) | `grid.infer_verb(DB.lookup, …)` |
+| `SHIM(core §N)` (`AUTO`, its catalog entry, `resolve_auto`) | `mod.auto()`; saved as `auto`, the run's verb read from `output.meta["auto"]` |
+| `SHIM(core §O)` (`modifier_settings_problem`) | `grid.check_modifier(kind, params)` |
+| reads of `grid.BUILTIN_TOOLS`, `SHAPE_VERBS`, `MODIFIERS`, `PAYLOAD` | `builtin_tools()`, `shape_verbs()`, `modifier_catalog()`, `payload_column()` |
+| `REGISTRY.freeze()` only | plus `grid.freeze()` |
+
+**What the app's users see change:** modifier errors are in core's words
+(*"retry needs times= — it has no default, so a step without it cannot
+run"*); `mod.auto()` is saved as `auto`; table tools follow core's C14 and
+C11 rules (a gapped whole-number column is `Int64`, so `10.0` reads `10`;
+column names are strings); a table tool must return a DataFrame. `merge_steps`
+now annotates `right_data: pd.DataFrame | str`, because core rightly refuses
+a table for a `str` parameter.
+
+**Still on the app's side, by choice:**
+
+- `operation_formula.format_parts`, not `Operation.to_source()` (P). The step
+  editor's parts keep what was *written*: a bracket-less inferred form and
+  positional resources. `to_source()` canonicalises both away.
+- Steps holding one value (a dict, a list, a number) are passed to a tool as
+  that value, as a literal, not as a `$ref` — see C19.
+
+**Core's eight decisions for the app to confirm** are in
+[009-decisions-to-confirm.md](009-decisions-to-confirm.md), each with what core
+does (run, not quoted), what it changes in the app, and a recommendation.
+Running them found C20 below, and that K2 is only half fixed.
 
 ## The goal: the app imports core's grid and nothing else
 
@@ -55,6 +104,10 @@ gap here with what you ran and what it returned.
 | **C12** | Discourage `**kwargs` (warn; refuse in strict mode); keep refusing `*args` | 3: cleanup | — |
 | **C15** | Tool versions and a `deterministic` flag decide when results are reused | 3: feature | — |
 | **C16** | Stable row ids, guaranteed per verb (`expand` derives from the parent) | 3: feature | — |
+| **C17** | `mod.table()` binds the parameter typed `DataFrame`, not the first | 2: UI (new at 9a86a0d) | `SHIM(core §C17)`, the last legacy `dataframe` fallback |
+| **C18** | `catalog()` description is the docstring's first paragraph, not first line | 3: cleanup (new) | `SHIM(core §C18)` |
+| **C19** | A one-cell step passed to a `dict`-typed parameter is its value | 3: consistency (new) | inlining one-value steps as literals |
+| **C20** | A selection as a tool's input is silently ignored in JSON | **1: wrong result** (new) | — |
 | **N** | A written `mod.auto()`, resolved at run | 3: editor | `SHIM(core §N)` |
 | **P** | `Operation.to_source()` | 3: editor | replaces `format_parts` |
 | **M** | `infer_verb` reads a bound method's `self` as a column | 3: cleanup | `SHIM(core §M)` |
@@ -1091,6 +1144,73 @@ right:
 that ran it `stale`, and re-running a non-deterministic step with unchanged
 inputs reuses its results unless asked.
 
+### C17. `mod.table()` binds the parameter typed `DataFrame`
+
+**Today (9a86a0d):** the grid goes to the tool's *first* parameter.
+
+```python
+def later(n: int, data: pd.DataFrame) -> pd.DataFrame: return data.head(n)
+wf["l"] = Operation.from_dict({"tool_id": "later", "input": {"$ref": "a"},
+    "arguments": {"n": 1}, "modifiers": [{"kind": "table", "params": {}}]}, tools)
+wf.step("l").problems
+# ("later() needs 'data', which 'a' does not have (it has k, n, x)",)
+```
+
+**Ask:** hand the grid to the one parameter annotated `pd.DataFrame` (the
+first, if none is). **Removes:** `SHIM(core §C17)`,
+`core_bridge.needs_whole_frame_shim`, and with it the last use of the legacy
+`dataframe` orchestrator from the grid path. **Done when:** the step above
+runs and returns one row.
+
+### C18. `catalog()`'s description is the docstring's first paragraph
+
+**Today (9a86a0d):** it is the first *line*, so a wrapped summary is cut
+mid-sentence. Of the app's 29 built-in tools, 8 were cut, e.g. `to_rows`:
+*"Create a step from a single raw value. The value is stored in a"*.
+
+**Ask:** take the first paragraph (up to the first blank line), joined with
+spaces. **Removes:** `SHIM(core §C18)`, `core_bridge.docstring_summary`.
+**Done when:** `catalog()["to_rows"]["description"]` ends with *"…that you can
+reference from later steps."*
+
+### C19. A one-cell step passed to a parameter typed `dict`
+
+**Today (9a86a0d):** refused, though an untyped parameter gets the value:
+
+```python
+wf["d"] = {"a": 1, "b": 2}                    # one cell
+typed(cfg=wf["d"])     # cfg: dict
+# problem: "cfg: dict, but 'd' is a cell — an argument is passed whole, not one value per row"
+untyped(cfg=wf["d"])   # → "{'a': 1, 'b': 2}"
+scal(n=wf["k"])        # n: int, wf["k"] = 5 → 10
+```
+
+The same refusal with an explicit cell selection (`rows: 0, columns:
+{"names": ["value"]}`). **Ask:** a cell is its value for any parameter whose
+type the value fits, `dict` included. **Removes:** the app's inlining of a
+one-value step as a literal in `grid_runner._plan` (then a `$ref`, so the
+step is tracked for stale/rename). **Done when:** `typed(cfg=wf["d"])` runs.
+
+### C20. A selection as a tool's input is silently ignored in JSON
+
+**Today (9a86a0d):** Python refuses it, but the same operation as JSON is
+accepted, saved with the selection, and run on **every** row:
+
+```python
+inc[mod.map()](wf["r"][0:2])
+# TypeError: a selection can't be a tool's input: make it its own step …
+
+Operation.from_dict({"tool_id": "inc",
+    "input": {"$ref": "r", "rows": {"start": 0, "stop": 2}},
+    "arguments": {}, "modifiers": [{"kind": "map", "params": {}}]}, tools)
+# problems: ()          → runs on 3 rows, not 2
+```
+
+The app builds every step from JSON, so it can't rely on the Python refusal.
+**Ask:** `from_dict` refuses a selection in `input` with the Python message
+(or applies it, if 009 decision 7 allows row-only selections). **Done when:**
+the JSON above has that problem and doesn't run.
+
 ### C16. Stable row ids, guaranteed per verb
 
 C7 selects rows by **position**. Re-running failed rows (K15), reusing
@@ -1345,13 +1465,13 @@ Every ask's **Done when** is written as a check that can be run against core.
 | 001 §D, §F · 003 §L · 004 B6 · 120/121 C8 | K10 (done), C1 |
 | 001 §G · 004 B6 | done (`join`/`stack`/`zip_`); K11 |
 | 002 §4 | settled (`select`/`slice`) |
-| 003 §A, §B, §E, §J · `SHIM(core §A,§B,§E,§J)` | done in `grid.catalog()`; app-side, C3 |
+| 003 §A, §B, §E, §J · `SHIM(core §A,§B,§E,§J)` | done in `grid.catalog()`; shims removed at 9a86a0d |
 | 003 §C, §D, §H | not asked (engine) |
 | 003 §G · `SHIM(core §G)` | C3.3 (tags) |
-| 003 §K · 121 C9 · `SHIM(core §K)` | K12 |
-| 003 §M · 006 N3 · `SHIM(core §M)` | M |
-| 003 §N · `SHIM(core §N)` | N |
-| 003 §O · `SHIM(core §O)` | O |
+| 003 §K · 121 C9 · `SHIM(core §K)` | K12 — done, removed |
+| 003 §M · 006 N3 · `SHIM(core §M)` | M — done, removed |
+| 003 §N · `SHIM(core §N)` | N — done, removed |
+| 003 §O · `SHIM(core §O)` | O — done, removed |
 | 003 §P | P |
 | 004 B7 / B8 / B9 · 121 C10 | K14 / K15 / K16 |
 | 004 C10 | K17 |
@@ -1364,5 +1484,7 @@ Every ask's **Done when** is written as a check that can be run against core.
 | 006 R6 | K1, K2, K3 |
 | `dev_plan/117` SR-12, SR-13 (engine `ReferenceResolver` subscripts) | C7 (on the grid's `StepRef`; the engine resolver is retiring) |
 | `dev_plan/117` SR-14 (contradiction with 001 §C) | settled by C7: selections are explicit and typed |
-| `SHIM(core §A6)` in `grid_runner.py` | K12 (whole-table tools) |
+| `SHIM(core §A6)` in `grid_runner.py` | K12 (whole-table tools) — done, removed |
+| `SHIM(core §C17)` | C17 |
+| `SHIM(core §C18)` | C18 |
 | `dev_plan/200` B2 (kernel restart) | C4 |

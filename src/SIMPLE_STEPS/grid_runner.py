@@ -19,6 +19,8 @@ literal args               ``arguments`` (text coerced to the annotation)
 ``p=step1["col"]``         ``over: step1`` — plus a rename ``col → p`` first,
                            because core binds parameters to columns *by name*
 ``p=step1``                ``over: step1``
+``df=step1`` (a table)     ``table`` over step1; other tables → ``$ref`` args
+``values=step1["col"]``    ``{"$ref": step1, "columns": {"names": [col]}}``
 ``_orchestrator``          the shape verb (else inferred by core, else source)
 ``_name``, ``_by``, …      that verb's settings (``modifier_catalog()``)
 ``_retry``, ``_timeout``   ``retry`` / ``timeout`` modifiers, applied per row
@@ -29,11 +31,14 @@ Tools are never registered with core: each run passes the app's own
 ``OPERATION_REGISTRY`` as the tools dict, so core resolves ids against it and
 nothing leaks into ``grid.TOOLS``.
 
-What core cannot do yet is shimmed in ``core_bridge`` and tagged there:
-whole-table tools (``SHIM(core §A6)``) and steps that read two earlier steps
-fall back or fail with a pointer, never silently. Reading several steps is
-core's combine verbs (``join`` / ``stack`` / ``zip_``), which only formulas in
-core's syntax reach (``run_formula``).
+A whole-table tool (``f(df: pd.DataFrame, …)``, or ``_orchestrator:
+dataframe``) runs under core's ``table`` verb. A value read from another step
+is a core reference in ``arguments`` (``values=step1["n"]`` → a column
+selection), or the value itself when the step holds one value. What core
+cannot do yet is shimmed in ``core_bridge`` and tagged there (``SHIM(core
+§C17)``). Reading several steps row by row is core's combine verbs (``join`` /
+``stack`` / ``zip_``), which only formulas in core's syntax reach
+(``run_formula``).
 """
 
 from __future__ import annotations
@@ -57,7 +62,8 @@ TOOLLESS_VERBS = ("select", "drop", "rename", "widen", "slice", "sort", "distinc
 TOOL_VERBS = ("map", "filter", "group", "expand", "collapse", "sweep")
 EXECUTION_MODIFIERS = {"retry": "times", "timeout": "seconds"}
 
-# The UI's older orchestration names, mapped onto core verbs.
+# The UI's older orchestration names, mapped onto core verbs. ``dataframe``
+# (the whole table) is core's ``table``; see ``_plan_table``.
 LEGACY_MODES = {"rowmap": "map", "step": "source", "raw_output": "source"}
 
 # Group label for the verb operations in the palette.
@@ -96,15 +102,15 @@ def run_grid_step(
 ) -> Optional[Tuple[str, dict]]:
     """Run one step through core. Returns ``(output_ref, metrics)``.
 
-    Returns ``None`` for what core cannot run yet — a whole-table tool, or a
-    value taken from another step — and the caller runs it on the legacy path
-    (``core_bridge.needs_whole_frame_shim``).
+    Returns ``None`` for what core cannot run yet — a whole-table tool whose
+    table isn't its first parameter — and the caller runs it on the legacy
+    path (``core_bridge.needs_whole_frame_shim``).
     """
     from .core_bridge import needs_whole_frame_shim
     from .engine import _step_result_metrics, get_value, save_dataframe, save_raw_value
 
     plan = _plan(op_id, config, step_map, input_ref_id, session_id)
-    if needs_whole_frame_shim(plan.verb, plan.table_args, plan.value_args):
+    if needs_whole_frame_shim(plan.verb):
         return None
     if plan.upstream_ref is None and plan.verb not in ("source", "sweep"):
         raise GridStepError(
@@ -113,6 +119,10 @@ def run_grid_step(
         )
 
     wf = grid.Workflow()
+    # Steps an argument reads (`values=step1["n"]`, `other=step2`), loaded
+    # under their own names so the arguments are core references.
+    for name, ref_id in plan.ref_steps.items():
+        wf[name] = get_value(ref_id, session_id=session_id)
     over = None
     if plan.upstream_ref is not None:
         data = get_value(plan.upstream_ref, session_id=session_id)
@@ -162,7 +172,7 @@ def run_grid_step(
             value = returned.get("value")
             return save_raw_value(value, session_id=session_id), _step_result_metrics(value)
 
-    frame = _restore_bound_columns(output.data, plan.renames, plan.verb_settings.get("name"))
+    frame = _restore_bound_columns(output.data, plan.renames, grid.payload_column(output))
     frame = frame.reset_index(drop=True)
     out_ref = save_dataframe(frame, session_id=session_id, store_mode=result_store)
     return out_ref, {"rows": len(frame), "columns": [str(c) for c in frame.columns],
@@ -232,15 +242,11 @@ def run_formula(formula: str, load: Callable[[str], Any],
     _bind_positional_resources(compiled, fn, types)
     inferred = None
     if compiled.needs_inference:
-        # tool(wf["x"], …) or tool[mod.auto()](wf["x"], …): infer the verb from
-        # the tool, with the input's data loaded — never from a not-yet-run
-        # source (core 005 K2). `auto` is SHIM(core §N): operation() swaps the
-        # inferred verb in, so core runs an ordinary operation.
+        # tool(wf["x"], …): infer the verb from the tool, with the input's data
+        # loaded, and write it into the operation. tool[mod.auto()](…) is
+        # core's own: it stays `auto` and core picks the verb each run.
         if fn is None:
             raise GridStepError(f"no tool named '{compiled.tool_id}'")
-        if compiled.bound_to:
-            from .core_bridge import inferable_method
-            fn = inferable_method(fn)
         if compiled.input is None:
             inferred = "source"
         else:
@@ -280,7 +286,6 @@ def infer_verb_for(parts: dict, upstream: Any = None,
         return "source", "it reads no step"
     tool = parts.get("tool") or ""
     if parts.get("bound_to"):
-        from .core_bridge import inferable_method
         from .resources import ResourceError, resolve
         name = parts["bound_to"]
         declarations = resources or {}
@@ -290,10 +295,9 @@ def infer_verb_for(parts: dict, upstream: Any = None,
             cls, _settings = resolve(name, declarations[name])
         except ResourceError as exc:
             return "map", str(exc)
-        method = getattr(cls, tool, None)
-        fn = inferable_method(method) if method is not None else None
+        fn = getattr(cls, tool, None)
     else:
-        fn = _tools().get(tool) or grid.BUILTIN_TOOLS.get(tool)
+        fn = _tools().get(tool) or grid.builtin_tools().get(tool)
     if fn is None:
         return "map", f"no tool named '{tool}'"
     literals = {k: v for k, v in (parts.get("arguments") or {}).items()
@@ -309,7 +313,7 @@ def _formula_tool(compiled, tools: Dict[str, Any], types: Dict[str, type]):
     if compiled.bound_to:
         cls = types.get(compiled.bound_to)
         return getattr(cls, compiled.tool_id, None) if cls is not None else None
-    return tools.get(compiled.tool_id) or grid.BUILTIN_TOOLS.get(compiled.tool_id)
+    return tools.get(compiled.tool_id) or grid.builtin_tools().get(compiled.tool_id)
 
 
 def _bind_positional_resources(compiled, fn, types: Dict[str, type]) -> None:
@@ -383,9 +387,11 @@ class _Plan:
         self.execution: List[dict] = []
         self.renames: Dict[str, str] = {}      # upstream column → tool parameter
         self.upstream_ref: Optional[str] = None
-        self.table_args: List[str] = []        # params handed a whole table
-        self.value_args: List[str] = []        # params handed a value from a step
+        self.table_args: Dict[str, str] = {}   # param handed a whole table → its ref
+        self.ref_args: Dict[str, dict] = {}    # param → a core reference to a step
+        self.ref_steps: Dict[str, str] = {}    # workflow step name → ref id
         self.keep_raw: bool = False            # a `step` tool: store its value raw
+        self.step_map: Dict[str, str] = {}     # step name → ref id, as the UI sent it
 
 
 def _plan(op_id: str, config: Dict[str, Any], step_map: Dict[str, str],
@@ -393,6 +399,7 @@ def _plan(op_id: str, config: Dict[str, Any], step_map: Dict[str, str],
     from .engine import coerce_config_to_signature, resolve_reference
 
     plan = _Plan()
+    plan.step_map = dict(step_map or {})
     entry = OPERATION_REGISTRY.get(op_id)
     if entry is None:
         raise GridStepError(f"Operation '{op_id}' is not registered")
@@ -417,6 +424,7 @@ def _plan(op_id: str, config: Dict[str, Any], step_map: Dict[str, str],
     func = entry["func"]
     literals: Dict[str, Any] = {}
     upstreams = set()
+    whole: Dict[str, str] = {}               # param → a whole step it names
     for name, value in args.items():
         ref = _step_ref(value, step_map)
         if ref is None:
@@ -425,28 +433,31 @@ def _plan(op_id: str, config: Dict[str, Any], step_map: Dict[str, str],
         ref_id, column = ref
         stored = _stored(ref_id, session_id)
         is_table = isinstance(stored, pd.DataFrame)
-        if column is None:
-            if not is_table:
-                plan.value_args.append(name)       # a raw value from a step
+        if not is_table:
+            # A step holding one value (a dict, a list, a number), or a field
+            # of one (step1.key): the value itself, as a literal.
+            literals[name] = resolve_reference(value, step_map, session_id=session_id)
+        elif column is None:
+            if _takes_table(func, name):
+                plan.table_args[name] = ref_id     # f(df: pd.DataFrame)
             else:
                 upstreams.add(ref_id)
-                if _takes_table(func, name):
-                    plan.table_args.append(name)   # f(df: pd.DataFrame)
-        elif is_table and column in stored.columns:
+                whole[name] = ref_id
+        elif column in stored.columns:
             if _takes_collection(func, name):
-                plan.value_args.append(name)       # the whole column, as a list
+                # The whole column as one value: values=step1["n"] → a list.
+                plan.ref_args[name] = _arg_ref(plan, ref_id, {"names": [column]})
             else:
                 upstreams.add(ref_id)
                 if column != name:
                     plan.renames[column] = name
         else:
-            # A field of a single value (step1.key on a dict) — a literal.
             literals[name] = resolve_reference(value, step_map, session_id=session_id)
 
     if plan.table_args or plan.verb == "dataframe":
-        plan.verb = "dataframe"
-        return plan
-    if plan.value_args:
+        _plan_table(plan, func, whole, input_ref_id)
+        plan.arguments = {**coerce_config_to_signature(func, literals), **plan.ref_args}
+        _apply_internal_settings(plan, internal)
         return plan
     if len(upstreams) > 1:
         raise GridStepError(
@@ -471,10 +482,49 @@ def _plan(op_id: str, config: Dict[str, Any], step_map: Dict[str, str],
         plan.verb = "map"
     if plan.verb == "infer":
         plan.verb = _infer(func, plan, literals, session_id)
-    plan.arguments = literals
+    plan.arguments = {**literals, **plan.ref_args}
     # After inference: `_name` etc. belong to whichever verb was settled on.
     _apply_internal_settings(plan, internal)
     return plan
+
+
+def _plan_table(plan: _Plan, func, upstreams: Dict[str, str],
+                input_ref_id: Optional[str]) -> None:
+    """A whole-table tool, ``f(df: pd.DataFrame, …)``: core's ``table`` verb.
+
+    Core hands the grid to the tool's first parameter, so the input is the
+    step that parameter reads — or, when nothing names one, the previous step.
+    Any other whole step an argument reads goes in as a core reference
+    (``merge_steps(right_data=step2)``).
+    """
+    import inspect
+    try:
+        first = next(iter(inspect.signature(func).parameters), None)
+    except (TypeError, ValueError):
+        first = None
+    if plan.table_args and first not in plan.table_args:
+        plan.verb = "dataframe"       # core can't bind it: needs_whole_frame_shim
+        return
+    plan.verb = "table"
+    plan.upstream_ref = plan.table_args.pop(first, None) or input_ref_id
+    for name, ref_id in {**plan.table_args, **upstreams}.items():
+        if ref_id != plan.upstream_ref:
+            plan.ref_args[name] = _arg_ref(plan, ref_id)
+
+
+def _arg_ref(plan: _Plan, ref_id: str, columns: Optional[dict] = None) -> dict:
+    """A core reference to the step stored as *ref_id*, loaded for an argument
+    under the step's own name, so core's messages name it."""
+    name = next((n for n, r in plan.ref_steps.items() if r == ref_id), None)
+    if name is None:
+        named = [n for n, r in plan.step_map.items() if r == ref_id]
+        name = named[0] if named and named[0] not in (_INTERNAL, _BOUND, "step") \
+            else f"_arg{len(plan.ref_steps)}"
+        plan.ref_steps[name] = ref_id
+    ref: Dict[str, Any] = {"$ref": name}
+    if columns is not None:
+        ref["columns"] = columns
+    return ref
 
 
 def _plan_verb_op(plan: _Plan, verb: str, args: Dict[str, Any],
@@ -551,11 +601,11 @@ def _verb_for(entry: dict, internal: Dict[str, Any]) -> str:
     chosen = str(internal.get("orchestrator") or "").strip()
     if chosen:
         chosen = LEGACY_MODES.get(chosen, chosen)
-        if chosen == "dataframe" or chosen in grid.SHAPE_VERBS:
+        if chosen == "dataframe" or chosen in grid.shape_verbs():
             return chosen
         raise GridStepError(
             f"unknown orchestration '{chosen}'. Core's verbs: "
-            f"{', '.join(sorted(grid.SHAPE_VERBS))}"
+            f"{', '.join(sorted(grid.shape_verbs()))}"
         )
     declared = entry.get("type") or "map"
     if declared == "dataframe":
@@ -747,12 +797,11 @@ def _check_renames(renames: Dict[str, str], data: Any) -> None:
 
 
 def _restore_bound_columns(frame: pd.DataFrame, renames: Dict[str, str],
-                           payload_name: Optional[str]) -> pd.DataFrame:
+                           payload: Optional[str]) -> pd.DataFrame:
     """Undo the binding rename on carried columns, so a step keeps its input's
     column names (``step1["video_url"]`` stays ``video_url`` downstream)."""
     if not renames:
         return frame
-    payload = payload_name or grid.PAYLOAD
     back = {p: c for c, p in renames.items() if p in frame.columns and p != payload}
     return frame.rename(columns=back)
 
@@ -767,11 +816,12 @@ def _engine_metrics(operation: dict, step, output) -> dict:
     failed = output.failed
     errors = [{"unit": str(unit), "error": str(row.get("error", ""))}
               for unit, row in failed.head(5).iterrows()]
-    outer = operation["modifiers"][-1] if operation["modifiers"] else {"params": {}}
-    payload = outer["params"].get("name") or grid.PAYLOAD
+    payload = grid.payload_column(output)
+    # `auto` is resolved by core each run; report the verb it picked.
+    verb = (output.meta.get("auto") or {}).get("verb") or _verb_of(operation)
     return {
         "engine": "grid",
-        "verb": _verb_of(operation),
+        "verb": verb,
         "operation": json.loads(json.dumps(operation, default=str)),
         "describe": step.describe(),
         "units": len(ledger),
@@ -782,7 +832,7 @@ def _engine_metrics(operation: dict, step, output) -> dict:
         # can show it in the cell itself: {row position: error}, for units
         # whose row is still in the output (map, group, … — not a dropped
         # filter row). Capped so a mass failure can't bloat the response.
-        "payload_column": payload if payload in output.data.columns else None,
+        "payload_column": payload if payload is not None and payload in output.data.columns else None,
         "row_errors": _row_errors(output, failed),
     }
 
