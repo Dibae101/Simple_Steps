@@ -20,6 +20,7 @@ import type { Workflow } from '../types/models';
 import { initialWorkflow } from '../mocks/initialData';
 import { StepWiringProvider } from '../context/StepWiringContext';
 import ResourcesMenu from './ResourcesMenu';
+import WorkflowOverview from './WorkflowOverview';
 import { useConnection } from '../hooks/useConnection';
 import { fetchWorkspaceInfo, openWorkspace, type WorkspaceInfo } from '../services/api';
 import './MainLayout.css';
@@ -34,9 +35,9 @@ const DEFAULT_RIGHT_SIDEBAR_WIDTH = 300;
 // there is nothing below the toolbar to reveal. Allotment reads min/max only
 // when the pane is created, so these are summed from the CSS rather than
 // measured: menubar 30 (MenuBar.css) + tabs 35 (WorkflowTabs.css) + the
-// header's 1px border, then the toolbar 36 (UnifiedToolbar.css) + grip 4.
+// header's 1px border, then the two-row toolbar 72 (UnifiedToolbar.css) + grip 4.
 const HEADER_COLLAPSED_HEIGHT = 66;
-const HEADER_EXPANDED_HEIGHT = 106;
+const HEADER_EXPANDED_HEIGHT = 142;
 const SIDEBAR_SNAP_THRESHOLD = 80; // dragging below this pixel width collapses the pane
 const DEFAULT_LOG_HEIGHT = 220;
 // The log's header is 36px; collapsing clamps the pane to exactly that, so the
@@ -600,7 +601,7 @@ export default function MainLayout() {
         />
       </div>
 
-      {/* Row 3: pipeline controls */}
+      {/* Rows 3–4: the two-row workflow toolbar */}
       <UnifiedToolbar
         onRunAll={runPipeline}
         onPauseAll={pausePipeline}
@@ -613,6 +614,13 @@ export default function MainLayout() {
         pipelineMeta={pipelineMeta}
         connection={connection}
         latestLog={latestLog}
+        overviewMenu={
+          <WorkflowOverview
+            name={workflow.name || 'Untitled'}
+            steps={workflow.steps}
+            resourceCount={Object.keys(workflow.resources ?? {}).length}
+          />
+        }
         resourcesMenu={
           <ResourcesMenu
             resources={workflow.resources}

@@ -23,26 +23,6 @@ You define operations as ordinary Python functions. Simple Steps wraps them in a
 The formula bar is the single source of truth. The UI controls (dropdowns, parameter fields) just edit the formula — they never hold independent state.
 
 ---
-
-## Architecture
-
-```
-┌─────────────────────────────────┐     HTTP/REST      ┌──────────────────────────────┐
-│  React Frontend  (Vite + TS)    │ ◄────────────────► │  FastAPI Backend  (Python)   │
-│                                 │                     │                              │
-│  • Step canvas (arrow icons)    │                     │  • Operation Registry        │
-│  • Formula bar                  │                     │  • Orchestration Engine      │
-│  • Data grid (Glide)            │                     │  • Plugin auto-scanner       │
-│  • Autocomplete                 │                     │  • Workflow file manager     │
-└─────────────────────────────────┘                     └──────────────────────────────┘
-```
-
-**Frontend:** React 18, TypeScript, Vite, Glide Data Grid, Lucide icons  
-**Backend:** FastAPI, Pydantic v2, pandas, uvicorn  
-**Python:** 3.9+
-
----
-
 ## Installation
 
 ### From GitHub
@@ -647,6 +627,25 @@ Notes:
 | Operations not appearing in the UI | Ensure your file ends in `_ops.py` and is in a scanned directory (see `--ops`) |
 
 ---
+## Architecture
+
+```
+┌─────────────────────────────────┐     HTTP/REST      ┌──────────────────────────────┐
+│  React Frontend  (Vite + TS)    │ ◄────────────────► │  FastAPI Backend  (Python)   │
+│                                 │                     │                              │
+│  • Step canvas (arrow icons)    │                     │  • Operation Registry        │
+│  • Formula bar                  │                     │  • Orchestration Engine      │
+│  • Data grid (Glide)            │                     │  • Plugin auto-scanner       │
+│  • Autocomplete                 │                     │  • Workflow file manager     │
+└─────────────────────────────────┘                     └──────────────────────────────┘
+```
+
+**Frontend:** React 18, TypeScript, Vite, Glide Data Grid, Lucide icons  
+**Backend:** FastAPI, Pydantic v2, pandas, uvicorn  
+**Python:** 3.9+
+
+---
+
 
 ## License
 
