@@ -796,7 +796,8 @@ def run_operation(
         return out_ref, {"rows": len(result_df), "columns": list(result_df.columns)}
 
     # 2c. Core's grid model. Returns None for what core cannot run yet
-    # (whole-table tools — core_bridge.needs_whole_frame_shim), which then
+    # (a table tool whose table isn't its first parameter —
+    # core_bridge.needs_whole_frame_shim), which then
     # falls through to the legacy orchestrators below.
     if _runs_on_grid(op_id):
         from .grid_runner import run_grid_step

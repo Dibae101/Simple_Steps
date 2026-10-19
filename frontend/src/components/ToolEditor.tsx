@@ -31,7 +31,7 @@ import './ToolEditor.css';
  * editor, with the reason, until it is.
  *
  * Passing a reference with no verb chosen writes `mod.auto()`: the verb is
- * picked from the input's data each run (SHIM core §N), and the editor shows
+ * picked from the input's data each run (core's mod.auto), and the editor shows
  * what it resolves to now and why. Changing the modifiers makes them
  * explicit — auto becomes that verb — and a verb you chose is never replaced.
  */

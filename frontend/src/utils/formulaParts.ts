@@ -87,7 +87,7 @@ export function withShapeVerb(
   return next;
 }
 
-/** `mod.auto()`: the verb is picked from the input's data each run (SHIM core §N). */
+/** `mod.auto()`: core picks the verb from the input's data each run. */
 export const AUTO = 'auto';
 
 /**

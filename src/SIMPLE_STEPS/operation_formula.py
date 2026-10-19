@@ -71,8 +71,6 @@ from typing import Any, Dict, List, Optional
 
 from simple_steps_core import grid
 
-from .core_bridge import (AUTO, is_modifier, is_shape_verb, modifier_catalog,
-                          modifier_settings_problem, resolve_auto)
 
 #: Shape verbs that read no step.
 NO_INPUT_VERBS = ("source", "sweep")
@@ -129,16 +127,14 @@ class Compiled:
             return self.tool_id
         if self.modifiers is None:
             return None
-        shapes = [m["kind"] for m in self.modifiers if is_shape_verb(m["kind"])]
+        shapes = [m["kind"] for m in self.modifiers if m["kind"] in grid.shape_verbs()]
         return shapes[-1] if shapes else None
 
     @property
     def needs_inference(self) -> bool:
-        """Whether the runner must pick the verb from the data: no brackets,
-        or ``mod.auto()`` (SHIM core §N)."""
-        if self.is_combine:
-            return False
-        return self.modifiers is None or any(m["kind"] == AUTO for m in self.modifiers)
+        """Whether the runner must pick the verb: no brackets. ``mod.auto()``
+        is core's, and core resolves it each run."""
+        return self.modifiers is None and not self.is_combine
 
     @property
     def reads(self) -> List[str]:
@@ -155,8 +151,6 @@ class Compiled:
         modifiers = self.modifiers
         if modifiers is None:
             modifiers = [{"kind": inferred_verb or "map", "params": {}}]
-        else:
-            modifiers = resolve_auto(modifiers, inferred_verb or "map")
         tool_id = self.tool_id
         if self.bound_to and bound_type:
             tool_id = f"{bound_type}.{self.tool_id}"
@@ -388,10 +382,10 @@ def _modifiers(node: ast.AST) -> List[dict]:
                 "mod.select(…), mod.retry(…), …"
             )
         kind = item.func.attr
-        if not is_modifier(kind):
+        if kind not in grid.modifier_catalog():
             raise FormulaError(
                 f"unknown modifier mod.{kind}; the modifiers are "
-                f"{', '.join('mod.' + k for k in sorted(modifier_catalog()))}"
+                f"{', '.join('mod.' + k for k in sorted(grid.modifier_catalog()))}"
             )
         if item.args:
             raise FormulaError(f"mod.{kind}(…) takes keyword settings, e.g. mod.{kind}(name=\"x\")")
@@ -468,9 +462,9 @@ def _argument(node: ast.AST, name: str) -> Any:
 
 def _check_settings(kind: str, params: Dict[str, Any]) -> None:
     """A modifier's settings, checked as you type rather than when it runs."""
-    problem = modifier_settings_problem(kind, params)
-    if problem:
-        raise FormulaError(problem)
+    problems = grid.check_modifier(kind, params)
+    if problems:
+        raise FormulaError("; ".join(problems))
 
 
 def _setting(node: ast.AST, kind: str, name: str) -> Any:

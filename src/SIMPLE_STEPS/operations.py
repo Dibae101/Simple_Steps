@@ -496,7 +496,7 @@ def aggregate(df: pd.DataFrame, column: str = "", functions: str = "count") -> p
 
 
 @simple_step_tool(name="Merge Steps", category="Data Reshaping", operation_type="dataframe", id="merge_steps")
-def merge_steps(df: pd.DataFrame, right_data: str = "", on: str = "", how: str = "inner") -> pd.DataFrame:
+def merge_steps(df: pd.DataFrame, right_data: pd.DataFrame | str = "", on: str = "", how: str = "inner") -> pd.DataFrame:
     """
     Join/merge two datasets on a shared key column.
 

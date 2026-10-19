@@ -134,8 +134,9 @@ _loader.load_all()
 set_loader(_loader)
 if _APP is not None and _APP.freeze:
     # Served to others: no tool can be added once the server is up.
-    from simple_steps_core import REGISTRY as _CORE_REGISTRY
+    from simple_steps_core import REGISTRY as _CORE_REGISTRY, grid as _grid
     _CORE_REGISTRY.freeze()
+    _grid.freeze()          # the grid's own tool and resource-type registries
 
 # Core's shape verbs as palette operations (=select(...), =map(tool=...)),
 # built from grid.modifier_catalog() so the palette cannot drift from core.
@@ -559,7 +560,7 @@ async def list_modifiers():
     ``grid.modifier_catalog()`` so the UI's Orchestration control cannot drift
     from what core runs (core react-api.md, ``GET /modifiers``).
     """
-    from .core_bridge import modifier_catalog      # core's, plus mod.auto (SHIM core §N)
+    from simple_steps_core.grid import modifier_catalog
     from .settings import get_settings
     return {"engine": get_settings().engine, "modifiers": modifier_catalog()}
 
