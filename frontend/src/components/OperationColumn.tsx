@@ -546,6 +546,15 @@ export default function OperationColumn({
                           <span className="label">Status:</span>
                           <span className={`status-badge status-${step.status}`}>{step.status}</span>
                        </div>
+                       {/* Core's warnings from the last run (spec 009 REQ-RUN-002). */}
+                       {!!step.warnings?.length && (
+                         <div className="summary-item step-warnings" data-testid="step-warnings">
+                           <span className="label">Warnings:</span>
+                           <ul className="value">
+                             {step.warnings.map((w) => <li key={w}>{w}</li>)}
+                           </ul>
+                         </div>
+                       )}
                     </div>
                   </div>
               </StepWidget>

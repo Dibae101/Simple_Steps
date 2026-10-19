@@ -108,6 +108,7 @@ gap here with what you ran and what it returned.
 | **C18** | `catalog()` description is the docstring's first paragraph, not first line | 3: cleanup (new) | `SHIM(core §C18)` |
 | **C19** | A one-cell step passed to a `dict`-typed parameter is its value | 3: consistency (new) | inlining one-value steps as literals |
 | **C20** | A selection as a tool's input is silently ignored in JSON | **1: wrong result** (new) | — |
+| **C21** | Whether a step's failures stop a run is public | 3: boundary (new) | `SHIM(core §C21)`, `core_bridge.uncaught_failed` |
 | **N** | A written `mod.auto()`, resolved at run | 3: editor | `SHIM(core §N)` |
 | **P** | `Operation.to_source()` | 3: editor | replaces `format_parts` |
 | **M** | `infer_verb` reads a bound method's `self` as a column | 3: cleanup | `SHIM(core §M)` |
@@ -1211,6 +1212,21 @@ The app builds every step from JSON, so it can't rely on the Python refusal.
 (or applies it, if 009 decision 7 allows row-only selections). **Done when:**
 the JSON above has that problem and doesn't run.
 
+### C21. Whether a step's failures stop a run is public
+
+**Today (9a86a0d):** `run_all` decides with the private
+`grid._uncaught_failure(output)`: a failed row stops the run unless
+`try_except` caught it (`caught: true`) or it was blocked upstream (it has a
+`cause`). It returns only the first such row. The app runs one step at a time
+and needs the same answer per step, to stop its own Run All the same way
+(spec 009 REQ-RUN-004), so it re-implements the rule from the public ledger.
+
+**Ask:** a public function or `Output` property, e.g. `Output.uncaught` (the
+failed rows that stop a run). **Removes:** `SHIM(core §C21)`,
+`core_bridge.uncaught_failed`. **Done when:** a `map` with one raising row
+reports one uncaught row, and the same step under `mod.try_except()` reports
+none.
+
 ### C16. Stable row ids, guaranteed per verb
 
 C7 selects rows by **position**. Re-running failed rows (K15), reusing
@@ -1487,4 +1503,5 @@ Every ask's **Done when** is written as a check that can be run against core.
 | `SHIM(core §A6)` in `grid_runner.py` | K12 (whole-table tools) — done, removed |
 | `SHIM(core §C17)` | C17 |
 | `SHIM(core §C18)` | C18 |
+| `SHIM(core §C21)` | C21 |
 | `dev_plan/200` B2 (kernel restart) | C4 |

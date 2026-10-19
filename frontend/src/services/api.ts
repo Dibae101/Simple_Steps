@@ -114,6 +114,10 @@ interface StepRunResponse {
     payload_column?: string | null;
     /** Each failed unit's error, keyed by its row position in the output. */
     row_errors?: Record<string, string>;
+    /** Failed units that weren't caught by mod.try_except or blocked upstream. */
+    uncaught_failed?: number;
+    /** Core's warnings: the step is valid, but probably not what was meant. */
+    warnings?: string[];
   };
   error?: string;
 }

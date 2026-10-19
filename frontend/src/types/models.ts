@@ -44,6 +44,10 @@ export interface Step {
   outputRows?: number;   // Row count of the output DataFrame
   outputColumns?: string[]; // Full list of columns in the output DataFrame (for step diffing)
   output_preview?: Cell[]; 
+  /** Core's warnings from the last run: valid, but probably not meant (spec 009 REQ-RUN-002). */
+  warnings?: string[];
+  /** Rows of the last run that failed and nothing caught; they stop Run All (REQ-RUN-004). */
+  uncaughtFailed?: number;
 }
 
 export interface Workflow {

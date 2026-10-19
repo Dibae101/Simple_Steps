@@ -811,7 +811,9 @@ def _restore_bound_columns(frame: pd.DataFrame, renames: Dict[str, str],
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _engine_metrics(operation: dict, step, output) -> dict:
-    """What core adds to a run's metrics: the operation it ran and the ledger."""
+    """What core adds to a run's metrics: the operation it ran, the ledger,
+    and its warnings (spec 009)."""
+    from .core_bridge import uncaught_failed
     ledger = output.ledger
     failed = output.failed
     errors = [{"unit": str(unit), "error": str(row.get("error", ""))}
@@ -826,6 +828,12 @@ def _engine_metrics(operation: dict, step, output) -> dict:
         "describe": step.describe(),
         "units": len(ledger),
         "failed": int(len(failed)),
+        # Failed rows that stop Run All: not blocked upstream, not caught by
+        # mod.try_except (REQ-RUN-003).
+        "uncaught_failed": uncaught_failed(output),
+        # Valid but probably not meant: an argument overriding a column, an
+        # output replacing one (REQ-RUN-001).
+        "warnings": [str(w) for w in (getattr(step, "warnings", None) or ())],
         "status_counts": {str(k): int(v) for k, v in ledger["status"].value_counts().items()},
         "errors": errors,
         # Where each failed unit's error belongs in the output, so the grid
