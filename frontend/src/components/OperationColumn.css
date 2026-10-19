@@ -925,3 +925,11 @@
 .operation-column.minimized .step-header-controls {
   display: none;
 }
+
+/* Core's warnings from the last run, under the step's status (spec 009). */
+.step-warnings ul {
+  margin: 0;
+  padding-left: 1.1em;
+  color: orange;
+  font-size: 0.85em;
+}

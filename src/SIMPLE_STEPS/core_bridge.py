@@ -14,6 +14,8 @@ Every shim below is tagged with the proposal section that removes it::
                      parameter, not the one typed DataFrame
     SHIM(core §C18)  grid.catalog()'s description is the docstring's first
                      line, not its first paragraph
+    SHIM(core §C21)  grid: whether a step's failures stop a run is private
+                     (_uncaught_failure)
     SHIM(core §G)    the engine's ToolDefinition.type has no 'step' member
                      (not asked: the engine is retiring)
 
@@ -64,6 +66,7 @@ __all__ = [
     "register_with_core",
     "simple_step_resource",
     "needs_whole_frame_shim",
+    "uncaught_failed",
 ]
 
 
@@ -280,6 +283,31 @@ def simple_step_resource(
 # --------------------------------------------------------------------------- #
 # Grid execution gaps                                                         #
 # --------------------------------------------------------------------------- #
+
+def uncaught_failed(output: Any) -> int:
+    """How many of *output*'s rows would stop a run: failed on their own (no
+    upstream ``cause``) and not caught by ``mod.try_except``.
+
+    SHIM(core §C21): core decides this in ``run_all`` with the private
+    ``grid._uncaught_failure``, which returns only the first such row. This is
+    the same rule, read from the public ledger, counted. Delete when core makes
+    it public (``Output.uncaught`` or similar).
+    """
+    ledger = getattr(output, "ledger", None)
+    if ledger is None or not len(ledger) or "status" not in ledger.columns:
+        return 0
+    failed = ledger[ledger["status"] == "failed"]
+    caught = failed["caught"] if "caught" in failed.columns else None
+    cause = failed["cause"] if "cause" in failed.columns else None
+    count = 0
+    for i in range(len(failed)):
+        if caught is not None and caught.iloc[i] is True:
+            continue
+        if cause is not None and isinstance(cause.iloc[i], str) and cause.iloc[i]:
+            continue
+        count += 1
+    return count
+
 
 def needs_whole_frame_shim(verb: str) -> bool:
     """Whether a step must run on the legacy engine instead of core's grid.

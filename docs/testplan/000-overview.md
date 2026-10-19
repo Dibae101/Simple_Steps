@@ -46,3 +46,12 @@ The following table maps requirements from `docs/spec/000-overview.md` to specif
 - **Framework:** Jest + React Testing Library (Unit/Integration)
 - **E2E Tool:** Cypress or Playwright (TBD)
 - **Mocking:** MSW (Mock Service Worker) for API simulation.
+
+### Run Feedback Group ([spec 009](../spec/009-run-feedback.md))
+| ID | Requirement | Test | File |
+|:---|:---|:---|:---|
+| **REQ-RUN-001** | Run metrics carry core's warnings | `TEST-RUN-01` | `tests/test_run_feedback.py` |
+| **REQ-RUN-002** | Warnings are logged and shown on the step | `TEST-RUN-02` | `frontend/src/hooks/useWorkflow.runFeedback.test.tsx` |
+| **REQ-RUN-003** | Run metrics count uncaught failed rows | `TEST-RUN-03` | `tests/test_run_feedback.py` |
+| **REQ-RUN-004** | Run All stops on an uncaught failure | `TEST-RUN-04` | `frontend/src/hooks/useWorkflow.runFeedback.test.tsx` |
+| **REQ-RUN-005** | The suggested verb is re-asked when the input runs | `TEST-RUN-05` | `frontend/src/components/ToolEditor.test.tsx` |

@@ -235,14 +235,19 @@ object you configure), and the UI shows them in different places.
 
 ## App follow-ups
 
-These are app work, needed whatever is decided above.
+All three are **done**, specified in
+[`spec/009-run-feedback.md`](../spec/009-run-feedback.md) (REQ-RUN-001…005)
+and tested (TEST-RUN-01…05). The "In the app today" lines for decisions 1–3
+above describe the app *before* them.
 
-- **A. Show core's step warnings** (for 2 and 3). Add `step.warnings` to the
-  run metrics in `grid_runner._engine_metrics`, and show them in the step
-  header and log the way errors are shown.
-- **B. Run All stops on uncaught failed rows** (if 1 is confirmed). In
-  `useWorkflow.ts`, stop when a step's metrics report `failed > 0` and its
-  modifiers have no `try_except`.
-- **C. Re-ask the verb after the input runs** (until 6 is settled). The
-  editor already re-asks when the input changes; it should also re-ask when
-  the input finishes running, so the suggestion visibly updates.
+- **A. Show core's step warnings** (for 2 and 3) — done. `/api/run` metrics
+  carry `warnings`; the log gets a `warn` entry and the step's summary panel
+  lists them.
+- **B. Run All stops on uncaught failed rows** (for 1) — done, **ahead of
+  the decision**. Metrics carry `uncaught_failed` (core's rule, shimmed as
+  008 C21); Run All stops after a step where it is above zero and logs how to
+  let it through. If decision 1 is changed, remove the stop in
+  `useWorkflow.ts` (`runPipeline`); the metric can stay.
+- **C. Re-ask the verb after the input runs** (for 6) — already the case:
+  the editor's request is keyed on the input's output reference, which is new
+  on every run. TEST-RUN-05 now holds it there.

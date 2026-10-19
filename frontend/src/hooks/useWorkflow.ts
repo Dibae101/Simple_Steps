@@ -535,6 +535,18 @@ export default function useWorkflow() {
           + (res.metrics.engine === 'grid' ? `\nCore: ${res.metrics.verb} · ${res.metrics.units ?? '?'} units` : ''),
       });
 
+      // Valid, but probably not what was meant: an argument overriding a
+      // column, an output replacing one (spec 009 REQ-RUN-002).
+      const warnings = res.metrics.warnings ?? [];
+      if (warnings.length) {
+        addLog('warn', `Step "${step.label}": ${warnings.length === 1 ? 'a warning' : `${warnings.length} warnings`} from core`, {
+          stepId: id,
+          stepLabel: step.label,
+          operationId,
+          detail: warnings.join('\n'),
+        });
+      }
+
       // Core records a failing row instead of failing the step: say so, with
       // the errors, rather than letting None cells pass as results.
       if (res.metrics.failed) {
@@ -557,6 +569,8 @@ export default function useWorkflow() {
             outputRows: stableMeta.rows,
             outputColumns: outputCols,
             output_preview: previewCells,
+            warnings,
+            uncaughtFailed: res.metrics.uncaught_failed ?? 0,
           };
         });
         const updated = { ...latest, steps: next };
@@ -597,6 +611,8 @@ export default function useWorkflow() {
           outputRefId: undefined,
           outputRows: undefined,
           outputColumns: undefined,
+          warnings: undefined,
+          uncaughtFailed: undefined,
         } : s));
         const updated = { ...latest, steps: next };
         workflowRef.current = updated;
@@ -784,6 +800,21 @@ export default function useWorkflow() {
           // runStep updates workflowRef on success and sets outputRefId.
           // Read it back from the live ref and add it to the stage.
           const completedStep = workflowRef.current.steps[i];
+          // Core's rule (spec 009 REQ-RUN-004): a failed row stops the run
+          // unless the step lets it through with mod.try_except. The step
+          // keeps its output, so its failed cells can be inspected.
+          if (completedStep?.status === 'completed' && (completedStep.uncaughtFailed ?? 0) > 0) {
+            const notRun = workflowRef.current.steps.slice(i + 1).map((s) => s.label);
+            addLog('error', `Run stopped at "${completedStep.label}": ${completedStep.uncaughtFailed} row(s) failed`, {
+              stepId: completedStep.id,
+              stepLabel: completedStep.label,
+              operationId: completedStep.process_type,
+              detail: `Not run: ${notRun.join(', ') || '(none)'}\n`
+                + 'Add mod.try_except(…) to the step to let these failures through, '
+                + 'or mod.try_except(default=…) to use a value instead.',
+            });
+            break;
+          }
           if (completedStep?.outputRefId && completedStep.status === 'completed') {
             staged.set(completedStep.id, completedStep.outputRefId);
             addLog('debug', `Staged output for "${completedStep.label}"`, {
