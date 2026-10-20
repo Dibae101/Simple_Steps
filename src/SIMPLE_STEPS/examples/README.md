@@ -1,7 +1,7 @@
 # The Simple Steps examples
 
-Three small examples, each a complete Simple Steps application, and a main
-example that uses all three at once. Every example ships saved workflows you
+Small examples, each a complete Simple Steps application, and a main
+example that uses them all at once. Every example ships saved workflows you
 can open in the UI, and a `runme.py` that runs them headlessly and proves each
 step produced what it should.
 
@@ -15,6 +15,8 @@ examples/
 ├── basic/            core verbs and data manipulation       → basic/README.md
 ├── dummy_llm/        resources: a dummy database and models → dummy_llm/README.md
 ├── plotly_charts/    Plotly charts and other rich cells     → plotly_charts/README.md
+├── image_processing/ a folder of images as a resource      → image_processing/README.md
+├── agent_demo/       build a workflow by asking the agent   → agent_demo/README.md
 └── bad_examples/     mistakes, and how to fix them          → bad_examples/README.md
 ```
 
@@ -111,6 +113,14 @@ A step is written the way simple-steps-core writes an operation:
   `=stack(…)`, `=zip_(…)`.
 - **Resources are `res["name"]`:** `=summarize[mod.map()](wf["notes"], llm=res["llm"])`.
 
+## The agent
+
+[`agent_demo/`](agent_demo/README.md) turns the agent on with a local Ollama
+model: open the chat pane, ask for a step, apply the proposal. Its `ask.py`
+sends five requests to your model from the terminal and checks what it
+builds by each step's output; its `runme.py` checks everything but the model,
+so it passes without Ollama.
+
 ## Bad examples
 
 [`bad_examples/`](bad_examples/README.md) is the other side: 20 mistakes —
@@ -127,7 +137,7 @@ PASS  nullable_column  add_one[mod.map()](wf["gappy"])
 
 ## The main example
 
-[`app.py`](app.py) imports the tools of all three sub-examples and offers
+[`app.py`](app.py) imports the tools of every sub-example and offers
 their resources, and `all-examples` uses them together:
 
 | step | formula | from |

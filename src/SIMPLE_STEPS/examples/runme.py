@@ -15,7 +15,7 @@ import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-SUB_EXAMPLES = ("basic", "dummy_llm", "plotly_charts", "bad_examples")
+SUB_EXAMPLES = ("basic", "dummy_llm", "plotly_charts", "image_processing", "agent_demo", "bad_examples")
 
 
 def run_sub_examples() -> dict:

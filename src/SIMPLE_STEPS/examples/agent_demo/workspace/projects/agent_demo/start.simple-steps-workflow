@@ -1,0 +1,14 @@
+{
+  "format_version": 2,
+  "id": "start",
+  "name": "Start here: ask the agent",
+  "steps": [
+    {
+      "name": "orders",
+      "expression": "sample_orders[mod.source()]()",
+      "meta": {
+        "label": "orders"
+      }
+    }
+  ]
+}
