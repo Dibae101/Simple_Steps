@@ -1,3 +1,4 @@
+import Markdown from 'react-markdown';
 import type { Step } from '../types/models';
 import type { OperationDefinition } from '../services/api';
 
@@ -52,6 +53,14 @@ export default function StepOverview({ step, availableOperations }: {
           </>
         )}
       </div>
+      {/* The step's notes (Settings → Notes), rendered. react-markdown escapes
+          raw HTML, so a note can't inject markup. */}
+      {step.notes?.trim() && (
+        <div className="sop-notes" data-testid="step-notes">
+          <div className="sop-notes-title">Notes</div>
+          <div className="sop-notes-body"><Markdown>{step.notes}</Markdown></div>
+        </div>
+      )}
     </div>
   );
 }

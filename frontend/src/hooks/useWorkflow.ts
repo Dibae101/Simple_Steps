@@ -128,6 +128,8 @@ async function hydrateStep(s: PipelineFile['steps'][number], i: number): Promise
     status: 'pending' as StepStatus,
     // Keep legacy 'operation' field in sync so the formula bar picks it up
     operation: formula,
+    ...(typeof s.meta?.step_color === 'string' ? { step_color: s.meta.step_color } : {}),
+    ...(typeof s.meta?.notes === 'string' ? { notes: s.meta.notes } : {}),
   };
 }
 
@@ -987,6 +989,13 @@ export default function useWorkflow() {
         config: s.configuration,
         // formula is the canonical field — always persisted
         formula: s.formula ?? s.operation ?? '',
+        // What the formula can't carry: the step's colour and notes.
+        ...((s.step_color || s.notes) ? {
+          meta: {
+            ...(s.step_color ? { step_color: s.step_color } : {}),
+            ...(s.notes ? { notes: s.notes } : {}),
+          },
+        } : {}),
       })),
     };
     return savePipeline(projectId, pipeline, { overwrite });

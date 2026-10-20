@@ -821,7 +821,7 @@ export default function MainLayout() {
                   step={step}
                   stepIndex={index}
                   previousSteps={previousSteps}
-                  color={getStepColor(index)}
+                  color={step.step_color ?? getStepColor(index)}
                   isActive={isExpanded}
                   isSqueezed={!isExpanded}
                   isMaximized={isMaximized}
@@ -1046,7 +1046,7 @@ export default function MainLayout() {
               availableOperations={availableOperations}
               pipelineStatus={pipelineStatus}
               pipelineCursorIndex={pipelineCursorIndex}
-              color={getStepColor(stepIndex)}
+              color={step.step_color ?? getStepColor(stepIndex)}
               initialPosition={dw.position}
               onClose={() => closeDetachedWindow(dw.id)}
               onUpdate={(id, updates) => updateStep(id, updates)}

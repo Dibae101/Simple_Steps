@@ -64,3 +64,17 @@ button:focus-visible {
     background-color: #121212;
   }
 }
+
+/* Material icons (components/MaterialIcon.tsx): inline SVG that sits on the
+   text line like a glyph. */
+.material-icon {
+  display: inline-block;
+  flex-shrink: 0;
+  vertical-align: -0.15em;
+}
+.material-icon--spin {
+  animation: material-icon-spin 0.9s linear infinite;
+}
+@keyframes material-icon-spin {
+  to { transform: rotate(360deg); }
+}

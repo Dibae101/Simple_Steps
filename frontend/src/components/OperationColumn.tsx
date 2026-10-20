@@ -538,6 +538,49 @@ export default function OperationColumn({
                             style={{ opacity: isEditMode ? 1 : 0.8, cursor: isEditMode ? 'text' : 'default'  }}
                           />
                        </div>
+                       {/* Colour: the swatch is a native colour input, so a
+                           click opens the system picker (a colour wheel on
+                           macOS). Saved as the step's meta.step_color. */}
+                       <div className="config-item">
+                          <label htmlFor={`step-color-${step.id}`}>Color</label>
+                          <div className="step-color-row">
+                            <label className="step-color-button" title="Choose the step's colour">
+                              <input
+                                id={`step-color-${step.id}`}
+                                type="color"
+                                className="step-color-input"
+                                value={/^#[0-9a-f]{6}$/i.test(color) ? color.toLowerCase() : '#888888'}
+                                onChange={(e) => onUpdate?.(step.id, { step_color: e.target.value })}
+                              />
+                              <span>Change color…</span>
+                            </label>
+                            {step.step_color && (
+                              <button
+                                type="button"
+                                className="step-color-reset"
+                                onClick={() => onUpdate?.(step.id, { step_color: undefined })}
+                                title="Back to the default colour for this position"
+                              >
+                                Reset
+                              </button>
+                            )}
+                          </div>
+                       </div>
+                       {/* Notes: Markdown, shown rendered in Analytics.
+                           Saved as the step's meta.notes. */}
+                       <div className="config-item config-item--stacked">
+                          <label htmlFor={`step-notes-${step.id}`}>
+                            Notes <span className="config-hint">Markdown · shown in Analytics</span>
+                          </label>
+                          <textarea
+                            id={`step-notes-${step.id}`}
+                            className="step-notes-input"
+                            rows={4}
+                            value={step.notes ?? ''}
+                            onChange={(e) => onUpdate?.(step.id, { notes: e.target.value || undefined })}
+                            placeholder="What is this step for? e.g. **Keeps** only rows with a score over 5."
+                          />
+                       </div>
                        <div className="summary-item">
                           <span className="label">Step ID:</span>
                           <span className="value" style={{ fontFamily: 'monospace', fontSize: '0.75em' }}>{step.id}</span>

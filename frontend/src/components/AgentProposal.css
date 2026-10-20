@@ -34,9 +34,11 @@
 }
 
 .agent-change-mark {
-  width: 12px;
-  font-weight: 700;
-  text-align: center;
+  width: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
 
 .agent-change-add .agent-change-mark { color: #22c55e; }

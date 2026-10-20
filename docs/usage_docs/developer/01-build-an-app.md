@@ -1,4 +1,4 @@
-# 02 — Build an application
+# 01 — Build an application
 
 We'll build a tiny "shop" app: three tools, one workflow, a check that it
 runs. Every snippet here was run as written.
@@ -132,7 +132,7 @@ simple-steps run app.py          # or: python app.py
 ```
 
 The UI opens in your browser. Add these steps (see
-[03 — Use an application](03-use-an-app.md)), one formula each:
+[03 — Define a step](../user/03-define-a-step.md) in the User guide), one formula each:
 
 | step | formula |
 |---|---|
@@ -245,16 +245,16 @@ res["sale"].sale_price[mod.map(name="sale")](wf["items"])
 Settings are plain literals and are saved with the workflow. Secrets are
 not: give the app a ready-made resource with `loaded={"name": Loaded(Type, …)}`
 and read credentials there. See
-[`examples/dummy_llm/`](../../src/SIMPLE_STEPS/examples/dummy_llm/README.md).
+[`examples/dummy_llm/`](../../../src/SIMPLE_STEPS/examples/dummy_llm/README.md).
 
 For a resource that holds files, see
-[`examples/image_processing/`](../../src/SIMPLE_STEPS/examples/image_processing/README.md):
+[`examples/image_processing/`](../../../src/SIMPLE_STEPS/examples/image_processing/README.md):
 a folder of images declared as `image_directory`, read with
 `res["image_directory"].files[mod.source()]()` and processed per image.
 
 ## Where next
 
-- [`examples/basic/basic_tools.py`](../../src/SIMPLE_STEPS/examples/basic/basic_tools.py)
+- [`examples/basic/basic_tools.py`](../../../src/SIMPLE_STEPS/examples/basic/basic_tools.py)
   — the file to copy: a tool for every verb, plus table and diagnostic tools.
-- [`examples/bad_examples/`](../../src/SIMPLE_STEPS/examples/bad_examples/README.md)
+- [`examples/bad_examples/`](../../../src/SIMPLE_STEPS/examples/bad_examples/README.md)
   — common mistakes and the messages they produce.

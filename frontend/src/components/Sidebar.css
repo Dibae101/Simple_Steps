@@ -784,6 +784,43 @@
   cursor: pointer;
 }
 .docs-link-icon { margin-top: 2px; opacity: 0.75; }
+
+/* The two guides. The User guide is what the panel is for: a heading and its
+   pages, open. The Developer guide is folded away under a quieter toggle. */
+.docs-section { margin-top: 6px; }
+.docs-section-title {
+  margin: 0;
+  padding: 8px 14px 2px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #9cdcfe;
+}
+.docs-section--developer { margin-top: 10px; border-top: 1px solid #2a2a2a; padding-top: 4px; }
+.docs-section-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 6px 14px;
+  background: none;
+  border: none;
+  color: #888;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-align: left;
+  cursor: pointer;
+}
+.docs-section-toggle:hover { color: #ccc; }
+.docs-section-count {
+  margin-left: auto;
+  font-weight: 400;
+  color: #666;
+}
+.docs-section--developer .docs-link-title { font-size: 0.78rem; color: #bbb; }
 .docs-link-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .docs-link-title { font-size: 0.82rem; color: #ddd; }
 .docs-link-summary { font-size: 0.72rem; color: #888; line-height: 1.4; }

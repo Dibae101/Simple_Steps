@@ -8,7 +8,13 @@ import {
   type AgentChange,
   type AgentProposal,
 } from '../utils/proposal';
+import {
+  mdiArrowUp, mdiClose, mdiCogOutline, mdiCreationOutline, mdiCubeOutline, mdiDeleteSweepOutline,
+  mdiFormatListNumbered, mdiLoading, mdiMinus, mdiPencilOutline, mdiPlus, mdiPowerPlugOutline,
+  mdiRobotOutline,
+} from '@mdi/js';
 import AgentConfigPanel from './AgentConfigPanel';
+import MaterialIcon from './MaterialIcon';
 import './ChatSidebar.css';
 import './AgentProposal.css';
 
@@ -111,7 +117,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({ isVisible, onClose, workflow,
     <div className="chat-sidebar">
       <div className="chat-sidebar-header">
         <div className="chat-header-left">
-          <span className="chat-header-icon">✨</span>
+          <span className="chat-header-icon"><MaterialIcon path={mdiCreationOutline} size={16} /></span>
           <span className="chat-header-title">Simple Steps Agent</span>
           <span
             className={`connection-dot ${ready ? 'connected' : 'disconnected'}`}
@@ -119,18 +125,32 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({ isVisible, onClose, workflow,
           />
         </div>
         <div className="chat-header-actions">
-          <button className="chat-header-btn" onClick={() => setConfigOpen(true)} title="Agent settings">⚙️</button>
-          <button className="chat-header-btn" onClick={() => setMessages([WELCOME])} title="Clear chat">🗑️</button>
-          {onClose && <button className="chat-header-btn" onClick={onClose} title="Close">✕</button>}
+          <button className="chat-header-btn" onClick={() => setConfigOpen(true)} title="Agent settings" aria-label="Agent settings">
+            <MaterialIcon path={mdiCogOutline} />
+          </button>
+          <button className="chat-header-btn" onClick={() => setMessages([WELCOME])} title="Clear chat" aria-label="Clear chat">
+            <MaterialIcon path={mdiDeleteSweepOutline} />
+          </button>
+          {onClose && (
+            <button className="chat-header-btn" onClick={onClose} title="Close" aria-label="Close">
+              <MaterialIcon path={mdiClose} />
+            </button>
+          )}
         </div>
       </div>
 
       <div className="chat-context-bar">
-        <span className="context-item" title="What the agent reads">📋 {workflow?.steps.length ?? 0} steps</span>
-        <span className="context-item" title="Resources this workflow names">
-          🔌 {Object.keys(workflow?.resources ?? {}).length} resources
+        <span className="context-item" title="What the agent reads">
+          <MaterialIcon path={mdiFormatListNumbered} size={13} /> {workflow?.steps.length ?? 0} steps
         </span>
-        {ready && <span className="context-item" title="The model">🤖 {status?.model}</span>}
+        <span className="context-item" title="Resources this workflow names">
+          <MaterialIcon path={mdiPowerPlugOutline} size={13} /> {Object.keys(workflow?.resources ?? {}).length} resources
+        </span>
+        {ready && (
+          <span className="context-item" title="The model">
+            <MaterialIcon path={mdiRobotOutline} size={13} /> {status?.model}
+          </span>
+        )}
       </div>
 
       <div className="chat-messages">
@@ -187,7 +207,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({ isVisible, onClose, workflow,
             disabled={busy || !ready || !input.trim()}
             title="Send"
           >
-            {busy ? '⏳' : '↑'}
+            {busy ? <MaterialIcon path={mdiLoading} spin /> : <MaterialIcon path={mdiArrowUp} />}
           </button>
         </div>
       </div>
@@ -198,7 +218,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({ isVisible, onClose, workflow,
 };
 
 const KIND_MARK: Record<AgentChange['kind'], string> = {
-  resource: '◆', add: '+', change: '~', remove: '−',
+  resource: mdiCubeOutline, add: mdiPlus, change: mdiPencilOutline, remove: mdiMinus,
 };
 const KIND_TEXT: Record<AgentChange['kind'], string> = {
   resource: 'use resource', add: 'add step', change: 'change step', remove: 'remove step',
@@ -255,7 +275,7 @@ export function ProposalCard({
               disabled={!!change.problem || done}
               onChange={() => toggle(key)}
             />
-            <span className="agent-change-mark">{KIND_MARK[change.kind]}</span>
+            <span className="agent-change-mark"><MaterialIcon path={KIND_MARK[change.kind]} size={13} /></span>
             <span className="agent-change-body">
               <span className="agent-change-title">{KIND_TEXT[change.kind]} <b>{change.name}</b></span>
               {'formula' in change && <code className="agent-change-formula">{change.formula}</code>}

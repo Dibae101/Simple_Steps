@@ -47,7 +47,11 @@ step editor.
 - **REQ-ENV-007:** the User Docs panel lists every page of
   `docs/usage_docs/` (its README first, as "Start here"), titled by each
   page's first heading, and is built into the frontend bundle, so the
-  installed app needs no docs on disk. A link to another page of the docs
-  opens that page in the panel.
-- **REQ-ENV-008:** a change to `docs/usage_docs/` marks the shipped bundle
-  stale, exactly as a change under `frontend/src` does (`preflight`).
+  installed app needs no docs on disk. The docs are in two parts, and the
+  panel shows them so: the **User guide** (`user/`) first and open, then the
+  **Developer guide** (`developer/`), folded until asked for. A link to
+  another page of the docs, relative to the page it's on, opens that page in
+  the panel.
+- **REQ-ENV-008:** a change to `docs/usage_docs/` — any page, in either
+  guide — marks the shipped bundle stale, exactly as a change under
+  `frontend/src` does (`preflight`).

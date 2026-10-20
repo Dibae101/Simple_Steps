@@ -58,7 +58,7 @@ describe('ChatSidebar', () => {
         onApplyCommands={onApplyCommands}
       />,
     );
-    await waitFor(() => expect(screen.getByText('🤖 llama3.2:3b')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByTitle('The model')).toHaveTextContent('llama3.2:3b'));
     fireEvent.change(screen.getByPlaceholderText(/Describe what you want/), { target: { value: 'score it' } });
     fireEvent.keyDown(screen.getByPlaceholderText(/Describe what you want/), { key: 'Enter' });
     expect(await screen.findByText('Score the readings.')).toBeInTheDocument();

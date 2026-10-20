@@ -311,6 +311,92 @@
   font-size: 0.85rem;
 }
 
+/* Step ID / Status rows in Settings: the panel is white, and these inherited
+   the app's white text, so they were invisible. */
+.settings-content .summary-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 0.8rem;
+  color: #333;
+}
+.settings-content .summary-item .label {
+  width: 100px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.settings-content .summary-item .value,
+.settings-content .summary-item .status-badge { color: #555; }
+
+/* ── Step colour and notes (Settings) ─────────────────────────────────── */
+.config-item--stacked {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+}
+.config-item--stacked label { width: auto; }
+.config-hint {
+  font-weight: 400;
+  font-size: 0.72rem;
+  color: #888;
+  margin-left: 6px;
+}
+.step-color-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+/* The swatch is a native colour input inside a button-like label: a click
+   anywhere on it opens the system colour picker. */
+.config-item .step-color-button {
+  width: auto;
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px 2px 3px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: #fafafa;
+  font-weight: 400;
+  color: #333;
+  cursor: pointer;
+}
+.config-item .step-color-button:hover { background: #f0f0f0; border-color: #aaa; }
+.config-item .step-color-input {
+  flex: none;
+  width: 22px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+.step-color-input::-webkit-color-swatch-wrapper { padding: 0; }
+.step-color-input::-webkit-color-swatch { border: 1px solid rgba(0, 0, 0, 0.25); border-radius: 3px; }
+.step-color-input::-moz-color-swatch { border: 1px solid rgba(0, 0, 0, 0.25); border-radius: 3px; }
+.step-color-reset {
+  background: none;
+  border: none;
+  padding: 0;
+  color: #2e6da4;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+.step-color-reset:hover { text-decoration: underline; }
+.step-notes-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-family: 'Consolas', 'Menlo', monospace;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  resize: vertical;
+}
+
 .op-name {
   margin: 0;
   white-space: nowrap;
@@ -485,10 +571,14 @@
   padding: 10px;
 }
 
-/* The formula editor runs edge to edge; keep only the vertical breathing room. */
+/* The formula editor runs edge to edge and flush: its Tool bar sits directly
+   under the FORMULA header. Vertical padding here showed as a black band
+   between the two (and another above the next panel). */
 .details-content > .expander-inner {
-  padding-left: 0;
-  padding-right: 0;
+  padding: 0;
+}
+.details-content .tool-editor {
+  padding: 0;
 }
 
 /* No padding around the data grid so it looks like one seamless spreadsheet */
@@ -683,6 +773,44 @@
   border-radius: 5px;
   padding: 8px 10px;
   box-shadow: 0 2px 6px rgba(0,0,0,0.18);
+}
+
+/* The step's notes, rendered from Markdown under the overview grid. */
+.sop-notes {
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px solid #d8d8d8;
+}
+.sop-notes-title {
+  font-size: 0.67rem;
+  font-weight: 700;
+  color: #555;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  margin-bottom: 2px;
+}
+.sop-notes-body {
+  font-size: 0.75rem;
+  color: #1a1a1a;
+  line-height: 1.45;
+  word-break: break-word;
+}
+.sop-notes-body > :first-child { margin-top: 0; }
+.sop-notes-body > :last-child { margin-bottom: 0; }
+.sop-notes-body p,
+.sop-notes-body ul,
+.sop-notes-body ol { margin: 4px 0; }
+.sop-notes-body ul,
+.sop-notes-body ol { padding-left: 18px; }
+.sop-notes-body h1,
+.sop-notes-body h2,
+.sop-notes-body h3 { font-size: 0.8rem; margin: 6px 0 2px; }
+.sop-notes-body code {
+  font-family: 'Consolas', 'Menlo', monospace;
+  font-size: 0.7rem;
+  background: #e4e4e4;
+  padding: 0 4px;
+  border-radius: 3px;
 }
 
 .step-overview-grid {

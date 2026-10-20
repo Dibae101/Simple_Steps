@@ -6,6 +6,8 @@
 import React, { useState, useEffect } from 'react';
 import type { AgentConfig, AgentHealthStatus } from '../services/agentApi';
 import { getAgentConfig, updateAgentConfig, getAgentHealth } from '../services/agentApi';
+import { mdiClose, mdiCogOutline } from '@mdi/js';
+import MaterialIcon from './MaterialIcon';
 import './AgentConfigPanel.css';
 
 interface AgentConfigPanelProps {
@@ -88,8 +90,10 @@ const AgentConfigPanel: React.FC<AgentConfigPanelProps> = ({ isOpen, onClose }) 
     <div className="agent-config-overlay">
       <div className="agent-config-panel">
         <div className="agent-config-header">
-          <span>⚙️ Agent Configuration</span>
-          <button className="agent-config-close" onClick={onClose}>✕</button>
+          <span className="agent-config-title"><MaterialIcon path={mdiCogOutline} /> Agent Configuration</span>
+          <button className="agent-config-close" onClick={onClose} title="Close" aria-label="Close">
+            <MaterialIcon path={mdiClose} />
+          </button>
         </div>
 
         {/* Health status */}
