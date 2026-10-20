@@ -1,4 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
+import { useAnchorRect } from '../hooks/useAnchorRect';
 import './MenuBar.css';
 
 export interface MenuBarAction {
@@ -49,12 +51,19 @@ export default function MenuBar({
   const [fileMenuOpen, setFileMenuOpen] = useState(false);
   const [recentMenuOpen, setRecentMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const fileButtonRef = useRef<HTMLButtonElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  // The dropdown is portalled to <body> (see below), so it is positioned from
+  // the File button's on-screen box rather than from its parent.
+  const anchor = useAnchorRect(fileButtonRef, fileMenuOpen);
 
-  // Close on outside click
+  // Close on outside click — "inside" is the trigger or the portalled dropdown
   useEffect(() => {
     if (!fileMenuOpen) return;
     const handler = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      const inside = menuRef.current?.contains(target) || dropdownRef.current?.contains(target);
+      if (!inside) {
         setFileMenuOpen(false);
         setRecentMenuOpen(false);
       }
@@ -85,14 +94,22 @@ export default function MenuBar({
       {/* File menu trigger */}
       <div className="menubar-left" ref={menuRef}>
         <button
+          ref={fileButtonRef}
           className={`menubar-item ${fileMenuOpen ? 'active' : ''}`}
           onClick={() => setFileMenuOpen(v => !v)}
         >
           File
         </button>
 
-        {fileMenuOpen && (
-          <div className="menubar-dropdown">
+        {/* Portalled to <body> on the popover layer: inside the header it was
+            clipped by the header's overflow and capped by its z-index, so the
+            step columns drew over it. */}
+        {fileMenuOpen && anchor && createPortal(
+          <div
+            ref={dropdownRef}
+            className="menubar-dropdown"
+            style={{ position: 'fixed', top: anchor.bottom + 2, left: anchor.left }}
+          >
             {fileItems.map((item, i) =>
               item.separator ? (
                 <div key={i} className="menu-separator" />
@@ -161,7 +178,8 @@ export default function MenuBar({
                 <span className="menu-entry-label">Close Workspace</span>
               </button>
             )}
-          </div>
+          </div>,
+          document.body,
         )}
       </div>
 

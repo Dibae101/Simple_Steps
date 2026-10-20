@@ -15,6 +15,13 @@
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
+
+  /* Stacking layers. Dropdowns and menus sit on top of everything — panels
+     (agent 1000, file editor 1200), floating windows (cell viewer 2000),
+     modals (9000), the execution log (9998). They are also rendered into
+     document.body, so no parent's stacking context or overflow can hide them.
+     Use var(--z-popover) for anything new that drops down or pops over. */
+  --z-popover: 20000;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
