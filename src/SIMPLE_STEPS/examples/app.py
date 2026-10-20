@@ -16,10 +16,13 @@ from pathlib import Path
 
 from SIMPLE_STEPS import App
 
-from .bad_examples import bad_tools
-from .basic import basic_tools
-from .dummy_llm import llm_tools
-from .plotly_charts import chart_tools
+# Absolute, not relative (`from .basic import …`): `python app.py` and
+# `simple-steps run app.py` both load this file with no parent package, so a
+# relative import fails. Both put this folder on sys.path, which these use.
+from bad_examples import bad_tools
+from basic import basic_tools
+from dummy_llm import llm_tools
+from plotly_charts import chart_tools
 
 app = App(
     tools=[basic_tools, llm_tools, chart_tools, bad_tools],
