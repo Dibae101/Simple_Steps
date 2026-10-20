@@ -1,0 +1,96 @@
+{
+  "format_version": 2,
+  "id": "images",
+  "name": "Images",
+  "meta": {
+    "twin": "examples/image_processing/image_pipeline.py: build_images()"
+  },
+  "resources": {
+    "image_directory": {
+      "source": "defined",
+      "type": "ImageDirectory",
+      "settings": {
+        "path": "sample_images"
+      }
+    }
+  },
+  "steps": [
+    {
+      "name": "files",
+      "expression": "res[\"image_directory\"].files[mod.source()]()",
+      "meta": {
+        "label": "files"
+      }
+    },
+    {
+      "name": "images",
+      "expression": "res[\"image_directory\"].load[mod.map(name=\"image\")](wf[\"files\"])",
+      "meta": {
+        "label": "images"
+      }
+    },
+    {
+      "name": "widths",
+      "expression": "image_width[mod.map(name=\"width\")](wf[\"images\"])",
+      "meta": {
+        "label": "widths"
+      }
+    },
+    {
+      "name": "brightness",
+      "expression": "mean_brightness[mod.map(name=\"brightness\")](wf[\"images\"])",
+      "meta": {
+        "label": "brightness"
+      }
+    },
+    {
+      "name": "colors",
+      "expression": "average_color[mod.map(name=\"color\")](wf[\"images\"])",
+      "meta": {
+        "label": "colors"
+      }
+    },
+    {
+      "name": "dark",
+      "expression": "is_dark[mod.filter()](wf[\"images\"], threshold=80)",
+      "meta": {
+        "label": "dark"
+      }
+    },
+    {
+      "name": "brightest",
+      "expression": "identity[mod.sort(by=\"brightness\", ascending=False)](wf[\"brightness\"])",
+      "meta": {
+        "label": "brightest"
+      }
+    },
+    {
+      "name": "grey",
+      "expression": "to_grayscale[mod.map(name=\"grey\")](wf[\"images\"])",
+      "meta": {
+        "label": "grey"
+      }
+    },
+    {
+      "name": "negatives",
+      "expression": "invert[mod.map(name=\"negative\")](wf[\"images\"])",
+      "meta": {
+        "label": "negatives"
+      }
+    },
+    {
+      "name": "thumbs",
+      "expression": "thumbnail[mod.map(name=\"thumb\")](wf[\"images\"], size=32)",
+      "meta": {
+        "label": "thumbs"
+      }
+    },
+    {
+      "name": "strip",
+      "expression": "film_strip[mod.collapse()](wf[\"thumbs\"])",
+      "meta": {
+        "label": "strip"
+      }
+    }
+  ]
+}

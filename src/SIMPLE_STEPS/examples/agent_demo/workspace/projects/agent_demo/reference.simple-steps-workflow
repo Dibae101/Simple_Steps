@@ -1,0 +1,49 @@
+{
+  "format_version": 2,
+  "id": "reference",
+  "name": "Reference: what a good agent builds",
+  "steps": [
+    {
+      "name": "orders",
+      "expression": "sample_orders[mod.source()]()",
+      "meta": {
+        "label": "orders"
+      }
+    },
+    {
+      "name": "totals",
+      "expression": "line_total[mod.map(name=\"total\")](wf[\"orders\"])",
+      "meta": {
+        "label": "totals"
+      }
+    },
+    {
+      "name": "large",
+      "expression": "is_large_order[mod.filter()](wf[\"totals\"], threshold=100)",
+      "meta": {
+        "label": "large"
+      }
+    },
+    {
+      "name": "ranked",
+      "expression": "identity[mod.sort(by=\"total\", ascending=False)](wf[\"large\"])",
+      "meta": {
+        "label": "ranked"
+      }
+    },
+    {
+      "name": "per_city",
+      "expression": "sum_totals[mod.collapse(by=\"city\", initial=0)](wf[\"totals\"])",
+      "meta": {
+        "label": "per_city"
+      }
+    },
+    {
+      "name": "months",
+      "expression": "month_of[mod.map(name=\"month\")](wf[\"orders\"])",
+      "meta": {
+        "label": "months"
+      }
+    }
+  ]
+}

@@ -244,6 +244,11 @@ not: give the app a ready-made resource with `loaded={"name": Loaded(Type, …)}
 and read credentials there. See
 [`examples/dummy_llm/`](../../src/SIMPLE_STEPS/examples/dummy_llm/README.md).
 
+For a resource that holds files, see
+[`examples/image_processing/`](../../src/SIMPLE_STEPS/examples/image_processing/README.md):
+a folder of images declared as `image_directory`, read with
+`res["image_directory"].files[mod.source()]()` and processed per image.
+
 ## Where next
 
 - [`examples/basic/basic_tools.py`](../../src/SIMPLE_STEPS/examples/basic/basic_tools.py)

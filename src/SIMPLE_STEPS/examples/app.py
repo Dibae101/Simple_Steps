@@ -4,8 +4,9 @@ app.py — the main example: every sub-example's tools in one application.
     simple-steps run examples/app.py
     python examples/app.py
 
-It imports the tools of ``basic/``, ``dummy_llm/``, ``plotly_charts/`` and
-``bad_examples/`` and offers their resources, so one workflow can use them:
+It imports the tools of ``basic/``, ``dummy_llm/``, ``plotly_charts/``,
+``image_processing/``, ``agent_demo/`` and ``bad_examples/`` and offers their
+resources, so one workflow can use them:
 ``workspace/projects/main/all-examples.simple-steps-workflow``. ``runme.py``
 runs every sub-example's checks, then that workflow's.
 
@@ -19,14 +20,16 @@ from SIMPLE_STEPS import App
 # Absolute, not relative (`from .basic import …`): `python app.py` and
 # `simple-steps run app.py` both load this file with no parent package, so a
 # relative import fails. Both put this folder on sys.path, which these use.
+from agent_demo import order_tools
 from bad_examples import bad_tools
 from basic import basic_tools
 from dummy_llm import llm_tools
+from image_processing import image_tools
 from plotly_charts import chart_tools
 
 app = App(
-    tools=[basic_tools, llm_tools, chart_tools, bad_tools],
-    resources=llm_tools.TYPES,
+    tools=[basic_tools, llm_tools, chart_tools, image_tools, order_tools, bad_tools],
+    resources=[*llm_tools.TYPES, image_tools.ImageDirectory],
     loaded=llm_tools.ready_made(),
     workspace=str(Path(__file__).resolve().parent / "workspace"),
     title="All examples",

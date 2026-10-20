@@ -10,6 +10,7 @@ point at the examples for everything else.
 | [02 — Build an application](02-build-an-app.md) | you have Python functions and want them in the UI |
 | [03 — Use an application](03-use-an-app.md) | someone gave you an app and you want to build workflows in it |
 | [04 — Formula syntax](04-formula-syntax.md) | you're writing steps in the formula bar, or reading saved workflows |
+| [05 — The agent](05-the-agent.md) | you want a chat pane to write steps for you, or to test it against your model |
 
 The shipped examples are the fuller reference, and they check themselves:
 [`src/SIMPLE_STEPS/examples/README.md`](../../src/SIMPLE_STEPS/examples/README.md).
@@ -39,6 +40,8 @@ some details are still moving. As a rough estimate:
   the input's `price` column.
 - **Resources** (databases, models, clients) are separate from data: declared
   with `simple_step_resource`, referred to as `res["name"]`.
+- **The agent proposes, you apply.** It writes checked formulas; it never
+  runs a step or edits the workflow by itself.
 - **An application is an `App(...)`** in an `app.py`, run with
   `simple-steps run app.py`.
 
