@@ -9,20 +9,18 @@ Resources are declared on the workflow (``wf.define``: a type and literal
 settings, never an object), and the objects themselves are the caller's —
 :func:`live_resources` — handed to each run. That's the split the app makes
 too: the saved file declares, the server owns the live objects.
-
-Import this after the app (``runme.py`` does): the tools come from it.
 """
 
 from __future__ import annotations
 
 from simple_steps_core import grid
-from simple_steps_core.grid import mod, res
+from simple_steps_core.grid import mod, op, res
 
-from SIMPLE_STEPS.example_check import tool_handles
+from SIMPLE_STEPS.operations import to_rows
 
-from llm_tools import FakeDB, FakeLLM, TinyLLM
+from llm_tools import FakeDB, FakeLLM, TinyLLM, enrich, summarize
 
-to_rows, identity, enrich, summarize = tool_handles("to_rows", "identity", "enrich", "summarize")
+identity = op("identity")  # core's built-in tool, by name, as core's own example writes it
 
 
 def build_resources() -> grid.Workflow:

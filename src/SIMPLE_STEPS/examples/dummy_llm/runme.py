@@ -19,7 +19,7 @@ from SIMPLE_STEPS.example_check import Example
 HERE = Path(__file__).resolve().parent
 example = Example(HERE / "app.py")
 
-import llm_pipeline as pipeline  # noqa: E402  — after the app: the twin uses its tools
+import llm_pipeline as pipeline  # noqa: E402
 from llm_tools import local_llm_missing  # noqa: E402
 
 

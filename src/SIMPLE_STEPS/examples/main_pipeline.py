@@ -4,23 +4,20 @@ main_pipeline.py — the main example's workflow, written in Python.
 The twin of ``workspace/projects/main/all-examples.simple-steps-workflow``:
 one Python line per saved step, using tools from all three sub-examples.
 ``runme.py`` runs both and checks every step's output is the same.
-
-Import this after the app (``runme.py`` does): the tools come from it.
 """
 
 from __future__ import annotations
 
 from simple_steps_core import grid
-from simple_steps_core.grid import mod, res
+from simple_steps_core.grid import mod, op, res
 
-from SIMPLE_STEPS.example_check import tool_handles
+from SIMPLE_STEPS.operations import to_rows
 
-from dummy_llm.llm_tools import FakeDB, FakeLLM
+from basic.basic_tools import add_n, is_big, scale
+from dummy_llm.llm_tools import FakeDB, FakeLLM, enrich, summarize
+from plotly_charts.chart_tools import bar_chart, swatch
 
-to_rows, identity = tool_handles("to_rows", "identity")
-scale, is_big, add_n = tool_handles("scale", "is_big", "add_n")          # basic
-enrich, summarize = tool_handles("enrich", "summarize")                 # dummy_llm
-swatch, bar_chart = tool_handles("swatch", "bar_chart")                 # plotly_charts
+identity = op("identity")  # core's built-in tool, by name, as core's own example writes it
 
 
 def build_all_examples() -> grid.Workflow:

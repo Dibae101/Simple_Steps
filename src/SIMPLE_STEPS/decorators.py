@@ -304,6 +304,52 @@ def _is_method(func: Callable) -> bool:
     return bool(params) and params[0] == "self"
 
 
+from simple_steps_core import grid as _grid  # noqa: E402
+
+
+class Tool(_grid.ToolHandle):
+    """What ``@simple_step_tool`` returns: core's tool handle for the function.
+
+    So a tool is written the same way in Python as in a saved formula, with
+    nothing in between::
+
+        from basic.basic_tools import scale
+        wf["scored"] = scale[mod.map(name="score")](wf["readings"])   # a core step
+        wf["auto"] = scale(wf["readings"])                            # verb inferred
+
+    Brackets, or a call whose input is ``wf[…]``, build a core step from the
+    tool's own function (core's ``ToolHandle``). The handle is never added to
+    core's tool registry: it carries the function itself. Any other call is
+    the app's auto-broadcasting call (:func:`_auto_broadcast`) — ``scale(3)``,
+    a console ``StepProxy``, ``apply=`` — exactly as before.
+    """
+
+    def __init__(self, func: Callable, tool_id: str, call: Callable):
+        super().__init__(func, tool_id)
+        functools.update_wrapper(self, func)   # name, doc, module, __wrapped__
+        self._call = call
+
+    def __call__(self, *args, **kwargs):
+        if (args and isinstance(args[0], _grid.StepRef)) or any(
+                isinstance(v, (_grid.StepRef, _grid.Operation))
+                for v in (*args, *kwargs.values())):
+            return super().__call__(*args, **kwargs)
+        return self._call(*args, **kwargs)
+
+    # What the auto-broadcasting call kept on itself, read and written there.
+    _raw_func = property(lambda self: self._call._raw_func)
+    _operation_type = property(lambda self: self._call._operation_type)
+    _apply = property(lambda self: self._call._apply,
+                      lambda self, value: setattr(self._call, "_apply", value))
+    apply_across_rows = property(lambda self: self._call.apply_across_rows)
+    apply_and_flatten = property(lambda self: self._call.apply_and_flatten)
+    run_raw = property(lambda self: self._call.run_raw)
+
+    @property
+    def _tool_id(self) -> str:
+        return self.id
+
+
 def simple_step_tool(
     name: str = None,
     category: str = "General",
@@ -335,8 +381,10 @@ def simple_step_tool(
         resource: the resource this tool is bound to, if any.
 
     Returns:
-        The auto-broadcasting wrapper, so direct Python calls and eval-mode
-        formulas keep working exactly as they did under ``@simple_step``.
+        A :class:`Tool`: core's tool handle, so ``tool[mod.map()](wf["x"])``
+        builds a core step; any other call is the auto-broadcasting call, so
+        direct Python calls and eval-mode formulas keep working exactly as
+        they did under ``@simple_step``.
     """
     if callable(name):                       # bare @simple_step_tool
         return simple_step_tool()(name)
@@ -401,10 +449,9 @@ def simple_step_tool(
         }
         DEFINITIONS_LIST.append(definition)
 
-        wrapped = _auto_broadcast(func, operation_type=operation_type)
-        wrapped._apply = apply
-        wrapped._tool_id = op_id
-        return wrapped
+        call = _auto_broadcast(func, operation_type=operation_type)
+        call._apply = apply
+        return Tool(func, op_id, call)
 
     return decorator
 

@@ -65,6 +65,10 @@ For every saved workflow, every step is run **twice**:
    Python:         wf["scored"] = scale[mod.map(name="score")](wf["readings"])
    ```
 
+   A twin imports the tools like any module — `from basic_tools import scale`
+   — because `@simple_step_tool` returns core's own tool handle: brackets
+   build a core step, while a plain call, `scale(3)`, still just runs it.
+
 The two outputs must match, cell for cell (images, tables and Plotly figures
 by content). Some steps are also checked against values written out in
 `runme.py`, so a mistake both runs share still fails:
