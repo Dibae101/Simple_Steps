@@ -18,7 +18,7 @@ from SIMPLE_STEPS.example_check import Example
 HERE = Path(__file__).resolve().parent
 example = Example(HERE / "app.py")
 
-import basic_pipeline as pipeline  # noqa: E402  — after the app: the twin uses its tools
+import basic_pipeline as pipeline  # noqa: E402
 
 
 def verb(expected):

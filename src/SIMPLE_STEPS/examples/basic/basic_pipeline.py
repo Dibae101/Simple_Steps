@@ -9,33 +9,26 @@ formula a step saves is exactly the right-hand side of its line::
     Python:  wf["scored"] = scale[mod.map(name="score")](wf["readings"])
 
 ``runme.py`` runs both — the saved file through the app, the twin straight in
-core — and checks every step's output is the same. The twin uses the app's
-own tool functions (``tool_handles``), so the two run the same code.
-
-Import this after the app (``runme.py`` does): the tools come from it.
+core — and checks every step's output is the same. The twin imports the
+app's own tools, so the two run the same code.
 """
 
 from __future__ import annotations
 
 from simple_steps_core import grid
-from simple_steps_core.grid import join, mod, stack, zip_
+from simple_steps_core.grid import join, mod, op, stack, zip_
 
-from SIMPLE_STEPS.example_check import tool_handles
+from SIMPLE_STEPS.operations import to_rows
 
-(to_rows, identity, count, gather, total, first, last,
- scale, is_big, label_city, add_n, fan_out, make_coords, grid_cell, risky, make_pair) = tool_handles(
-    "to_rows", "identity", "count", "gather", "total", "first", "last",
-    "scale", "is_big", "label_city", "add_n", "fan_out", "make_coords", "grid_cell", "risky",
-    "make_pair",
-)
+from basic_tools import (add_computed, add_n, bucket_score, build_record, classify_age,
+                         count_by, describe_table, empty_table, fan_out, grid_cell, is_big,
+                         label_city, make_coords, make_pair, make_range, make_series,
+                         reverse_text, risky, sample_people, scale, slow_double,
+                         sometimes_fails, split_text, to_upper, top_n, word_count)
 
-(make_range, slow_double, sometimes_fails, make_series, sample_people, classify_age,
- bucket_score, top_n, count_by, add_computed, describe_table, split_text, word_count,
- to_upper, reverse_text, build_record, empty_table) = tool_handles(
-    "make_range", "slow_double", "sometimes_fails", "make_series", "sample_people",
-    "classify_age", "bucket_score", "top_n", "count_by", "add_computed", "describe_table",
-    "split_text", "word_count", "to_upper", "reverse_text", "build_record", "empty_table",
-)
+# core's built-in tools, by name, as core's own example writes them
+identity, count, gather, total, first, last = (
+    op(name) for name in ("identity", "count", "gather", "total", "first", "last"))
 
 READINGS = '{"city": ["SF", "NYC", "SF", "LA"], "n": [1, 2, 3, 2]}'
 

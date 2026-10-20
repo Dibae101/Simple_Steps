@@ -11,7 +11,9 @@ written in Python does.
   theme: `basic/` (core verbs and data manipulation), `dummy_llm/`
   (resources, with an optional real model) and `plotly_charts/` (Plotly
   figures and other rich cells). Each sub-example has:
-  - its tools in a module whose name is unique across the examples;
+  - a package (an `__init__.py`), with its tools in one module that imports
+    nothing from its own folder, so the main example can import it as
+    `<name>.<module>` without changing the import path;
   - an `app.py` building an `App` of those tools, whose workspace is the
     sub-example's `workspace/`;
   - saved workflows in `workspace/projects/<name>/`;

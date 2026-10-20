@@ -13,12 +13,11 @@ from pathlib import Path
 from SIMPLE_STEPS import App
 
 import llm_tools
-from llm_resources import TYPES, ready_made
 
 app = App(
     tools=[llm_tools],
-    resources=TYPES,
-    loaded=ready_made(),
+    resources=llm_tools.TYPES,
+    loaded=llm_tools.ready_made(),
     workspace=str(Path(__file__).resolve().parent / "workspace"),
     title="Dummy LLM: resources",
 )

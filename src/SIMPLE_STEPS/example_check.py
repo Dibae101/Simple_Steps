@@ -295,27 +295,6 @@ def _message(error: str) -> str:
     return error[match.end():] if match else error
 
 
-def tool_handles(*names: str):
-    """Core tool handles for the app's tools (and core's builtins), by name —
-    what a twin writes its steps with::
-
-        scale, is_big = tool_handles("scale", "is_big")
-        wf["scored"] = scale[mod.map(name="score")](wf["readings"])
-
-    Each handle carries the app's own function, so the twin runs exactly the
-    code the app runs, and nothing is registered with core a second time.
-    """
-    from simple_steps_core import grid
-    from .grid_runner import _tools
-
-    table = {**grid.builtin_tools(), **_tools()}
-    missing = [n for n in names if n not in table]
-    if missing:
-        raise KeyError(f"no tool named {', '.join(missing)}; is the example's app imported?")
-    handles = tuple(grid.ToolHandle(table[n], n) for n in names)
-    return handles[0] if len(handles) == 1 else handles
-
-
 # ─────────────────────────────────────────────────────────────────────────────
 # Comparing outputs
 # ─────────────────────────────────────────────────────────────────────────────

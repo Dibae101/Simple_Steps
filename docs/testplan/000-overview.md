@@ -64,3 +64,9 @@ The following table maps requirements from `docs/spec/000-overview.md` to specif
 | **REQ-EX-006** | Bad examples go wrong as listed; fixes run cleanly | `TEST-EX-01` (`bad_examples`) | `tests/test_examples.py` |
 | **REQ-EX-004** | The main example's runme passes | `TEST-EX-02` | `tests/test_examples.py` |
 | **REQ-EX-005** | Checks run in tests and from an install | `TEST-EX-01/02`; `scripts/smoke_install.py` stage "`python examples/runme.py` passes from the installed copy" | — |
+
+### Tools Group ([spec 011](../spec/011-tools-are-core-handles.md))
+| ID | Requirement | Test | File |
+|:---|:---|:---|:---|
+| **REQ-TOOL-001** | A tool is core's handle; brackets build a core step, unregistered | `TEST-TOOL-01` | `tests/test_tool_handle.py` |
+| **REQ-TOOL-002** | Every other call behaves as before | `TEST-TOOL-02` | `tests/test_tool_handle.py` |

@@ -6,20 +6,18 @@ one Python line per saved step, each case's correction from ``bad_cases.py``.
 ``runme.py`` runs both and checks every step's output is the same.
 
 The mistakes have no twin: they're the formulas that don't make a step.
-
-Import this after the app (``runme.py`` does): the tools come from it.
 """
 
 from __future__ import annotations
 
 from simple_steps_core import grid
-from simple_steps_core.grid import mod, stack
+from simple_steps_core.grid import mod, op, stack
 
-from SIMPLE_STEPS.example_check import tool_handles
+from SIMPLE_STEPS.operations import to_rows
 
-(to_rows, identity, double_n, greet, label, add_one_or_zero, reciprocal, describe_rows) = tool_handles(
-    "to_rows", "identity", "double_n", "greet", "label", "add_one_or_zero", "reciprocal", "describe_rows",
-)
+from bad_tools import add_one_or_zero, describe_rows, double_n, greet, label, reciprocal
+
+identity = op("identity")  # core's built-in tool, by name, as core's own example writes it
 
 
 def build_corrected() -> grid.Workflow:

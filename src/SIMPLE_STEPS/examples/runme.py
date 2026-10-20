@@ -35,7 +35,7 @@ def check_main() -> bool:
     from SIMPLE_STEPS.example_check import Example
 
     example = Example(HERE / "app.py")
-    import main_pipeline as pipeline  # after the app: the twin uses its tools
+    import main_pipeline as pipeline
 
     example.check("main", "all-examples", twin=pipeline.build_all_examples,
                   live=pipeline.live_resources, expect={

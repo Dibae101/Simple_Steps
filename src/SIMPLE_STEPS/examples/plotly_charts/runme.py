@@ -20,7 +20,7 @@ from SIMPLE_STEPS.example_check import Example
 HERE = Path(__file__).resolve().parent
 example = Example(HERE / "app.py")
 
-import chart_pipeline as pipeline  # noqa: E402  — after the app: the twin uses its tools
+import chart_pipeline as pipeline  # noqa: E402
 
 
 def bar_figure(x, y, title, column="value"):

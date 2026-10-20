@@ -19,7 +19,7 @@ HERE = Path(__file__).resolve().parent
 example = Example(HERE / "app.py")
 
 import bad_cases  # noqa: E402
-import bad_pipeline as pipeline  # noqa: E402  — after the app: the twin uses its tools
+import bad_pipeline as pipeline  # noqa: E402
 
 # The saved files are built from bad_cases.py; a hand edit to either side
 # would make them disagree silently.

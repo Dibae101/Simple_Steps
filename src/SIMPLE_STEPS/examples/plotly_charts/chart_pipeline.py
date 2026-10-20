@@ -5,8 +5,6 @@ Each saved workflow in ``workspace/projects/plotly_charts/`` has a twin here:
 one Python line per saved step, in simple-steps-core's syntax. ``runme.py``
 runs both and checks every step's output is the same — figures, images and
 tables in cells compared by content.
-
-Import this after the app (``runme.py`` does): the tools come from it.
 """
 
 from __future__ import annotations
@@ -14,11 +12,9 @@ from __future__ import annotations
 from simple_steps_core import grid
 from simple_steps_core.grid import mod
 
-from SIMPLE_STEPS.example_check import tool_handles
+from SIMPLE_STEPS.operations import to_rows
 
-(to_rows, above_one, swatch, brightness, profile, city_chart, bar_chart) = tool_handles(
-    "to_rows", "above_one", "swatch", "brightness", "profile", "city_chart", "bar_chart",
-)
+from chart_tools import above_one, bar_chart, brightness, city_chart, profile, swatch
 
 
 def build_rich_cells() -> grid.Workflow:

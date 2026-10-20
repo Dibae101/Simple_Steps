@@ -8,8 +8,8 @@ click opens the full view, and a later step reads the real object.
     simple-steps run examples/plotly_charts/app.py
     python examples/plotly_charts/runme.py
 
-(The folder isn't called ``plotly``: the main example puts every example
-folder on the import path, where it would hide the plotly library itself.)
+(The folder isn't called ``plotly``: the main example imports it as a package
+from the examples folder, where it would hide the plotly library itself.)
 """
 
 from __future__ import annotations

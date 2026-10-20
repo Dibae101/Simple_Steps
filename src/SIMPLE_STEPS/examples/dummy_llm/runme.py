@@ -6,7 +6,7 @@ runme.py — run the dummy LLM example's workflows and check every step.
 ``resources`` runs through the app, then is compared step by step with its
 Python twin (``llm_pipeline.py``) run straight in simple-steps-core, and checked
 against the dummy models' known answers. ``local-llm`` uses a real model,
-so it runs only when Ollama has one (see ``local_llm.py``) — and since a real
+so it runs only when Ollama has one (see ``llm_tools.py``) — and since a real
 model's words can't be predicted, each answer must just be non-empty text.
 Exits non-zero if any step doesn't match.
 """
@@ -19,8 +19,8 @@ from SIMPLE_STEPS.example_check import Example
 HERE = Path(__file__).resolve().parent
 example = Example(HERE / "app.py")
 
-import llm_pipeline as pipeline  # noqa: E402  — after the app: the twin uses its tools
-from llm_resources import local_llm_missing  # noqa: E402
+import llm_pipeline as pipeline  # noqa: E402
+from llm_tools import local_llm_missing  # noqa: E402
 
 
 def answered(column="value"):
