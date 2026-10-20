@@ -34,6 +34,7 @@ import contextlib
 import io
 import json
 import math
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Mapping, Optional, Union
@@ -135,13 +136,17 @@ class Example:
               twin: Optional[Callable[[], Any]] = None,
               live: Optional[Callable[[], dict]] = None,
               expect: Optional[Mapping[str, Expectation]] = None,
-              skip: Optional[Callable[[], Optional[str]]] = None) -> bool:
+              skip: Optional[Callable[[], Optional[str]]] = None,
+              strict: bool = False) -> bool:
         """Run one saved workflow and check every step.
 
         *twin* builds the same workflow in Python (declared, not run); each
         step's output must match the app's. *live* returns the resource
-        objects the twin runs with. *expect* adds explicit checks per step.
-        *skip* returns a reason to skip the whole workflow, or None.
+        objects the twin runs with. *expect* adds explicit checks per step —
+        including :func:`refused`, :func:`warns` and :func:`fails` for a step
+        that is meant to go wrong. *skip* returns a reason to skip the whole
+        workflow, or None. With *strict*, a step that warns or has failed rows
+        nothing caught fails, unless *expect* says it should.
         """
         print(f"── {project}/{name}")
         reason = skip() if skip else None
@@ -156,8 +161,16 @@ class Example:
         expect = dict(expect or {})
         ok = True
         for sid, run in runs.items():
-            problems = []
-            if run.error:
+            wanted = expect.pop(sid, None)
+            problems, note = [], None
+            if isinstance(wanted, Refused):
+                if run.error is None:
+                    problems.append(f"expected it to be refused ({wanted.says!r}); it ran")
+                elif wanted.says not in run.error:
+                    problems.append(f"refused, but saying {run.error[:300]!r}, not {wanted.says!r}")
+                else:
+                    note = f"refused: {_message(run.error)}"
+            elif run.error:
                 problems.append(f"the app refused it: {run.error[:300]}")
             else:
                 if twin:
@@ -165,9 +178,18 @@ class Example:
                         problems.append("the Python twin has no step with this name")
                     else:
                         problems += _differences(run.data, python[sid])
-                if sid in expect:
-                    problems += _unmet(expect.pop(sid), run)
-            self._report(run, problems)
+                if isinstance(wanted, (Warns, Fails)):
+                    found = wanted.found(run.metrics)
+                    if found is None:
+                        problems.append(f"expected it to {wanted.verb} ({wanted.says!r}); "
+                                        f"{wanted.instead(run.metrics)}")
+                    else:
+                        note = f"{wanted.past}: {found}"
+                elif wanted is not None:
+                    problems += _unmet(wanted, run)
+                if strict and not isinstance(wanted, (Warns, Fails)):
+                    problems += _not_clean(run.metrics)
+            self._report(run, problems, note)
             ok &= not problems
         for sid in sorted(missing):
             self._report(StepRun(sid, "(only in the Python twin)"), ["the saved workflow has no such step"])
@@ -178,7 +200,7 @@ class Example:
         print()
         return ok
 
-    def _report(self, run: StepRun, problems: List[str]) -> None:
+    def _report(self, run: StepRun, problems: List[str], note: Optional[str] = None) -> None:
         if problems:
             self.failed += 1
             print(f"FAIL  {run.name:16} {run.expression}")
@@ -187,6 +209,8 @@ class Example:
         else:
             self.passed += 1
             print(f"PASS  {run.name:16} {run.expression}")
+            if note:
+                print(f"      → {note}")
 
     def finish(self) -> int:
         """Print the tally; the exit code is 1 if any step failed."""
@@ -194,6 +218,81 @@ class Example:
         skipped = f", {self.skipped} workflow(s) skipped" if self.skipped else ""
         print(f"{self.passed}/{total} steps as expected{skipped}")
         return 1 if self.failed else 0
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Steps that are meant to go wrong
+# ─────────────────────────────────────────────────────────────────────────────
+
+@dataclass(frozen=True)
+class Refused:
+    """The step can't run, and the app's reason contains *says*."""
+    says: str
+
+
+@dataclass(frozen=True)
+class Warns:
+    """The step runs, and one of core's warnings contains *says*."""
+    says: str
+    verb = "warn"
+    past = "warned"
+
+    def found(self, metrics: dict) -> Optional[str]:
+        return next((w for w in metrics.get("warnings") or [] if self.says in w), None)
+
+    def instead(self, metrics: dict) -> str:
+        return f"its warnings were {metrics.get('warnings') or 'none'}"
+
+
+@dataclass(frozen=True)
+class Fails:
+    """The step runs, rows fail, nothing catches them, and a row's error
+    contains *says*."""
+    says: str
+    verb = "fail rows"
+    past = "rows failed"
+
+    def found(self, metrics: dict) -> Optional[str]:
+        if not metrics.get("uncaught_failed"):
+            return None
+        errors = [e.get("error", "") for e in metrics.get("errors") or []]
+        hit = next((e for e in errors if self.says in e), None)
+        return None if hit is None else f"{metrics['uncaught_failed']} uncaught, {hit}"
+
+    def instead(self, metrics: dict) -> str:
+        errors = [e.get("error") for e in metrics.get("errors") or []]
+        return f"{metrics.get('uncaught_failed', 0)} uncaught failed rows, errors {errors or 'none'}"
+
+
+def refused(says: str) -> Refused:
+    """Expect the step to be refused, saying *says*."""
+    return Refused(says)
+
+
+def warns(says: str) -> Warns:
+    """Expect the step to run with a warning saying *says*."""
+    return Warns(says)
+
+
+def fails(says: str) -> Fails:
+    """Expect the step to run with failed rows nothing caught, one saying *says*."""
+    return Fails(says)
+
+
+def _not_clean(metrics: dict) -> List[str]:
+    """What makes a run not clean: a warning, or a failed row nothing caught."""
+    problems = [f"unexpected warning: {w}" for w in metrics.get("warnings") or []]
+    if metrics.get("uncaught_failed"):
+        errors = [e.get("error") for e in metrics.get("errors") or []]
+        problems.append(f"{metrics['uncaught_failed']} failed rows nothing caught: {errors}")
+    return problems
+
+
+def _message(error: str) -> str:
+    """The app's reason, without the prefix the engine adds
+    (``Error executing step: …`` or ``Error executing step <tool>: …``)."""
+    match = re.match(r"Error executing step(?: \S+)?: ", error)
+    return error[match.end():] if match else error
 
 
 def tool_handles(*names: str):

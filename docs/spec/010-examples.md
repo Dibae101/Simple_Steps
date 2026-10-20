@@ -22,6 +22,15 @@ written in Python does.
   tools and resources, and its workspace holds a workflow using tools from
   each sub-example.
 
+- **REQ-EX-006:** `bad_examples/` shows mistakes and their corrections. Each
+  case is a step written wrong, what Simple Steps does with it — refuses it,
+  warns, or runs it with failed rows nothing catches — the words it uses, and
+  the step written right. One list of cases (`bad_cases.py`) is the source of
+  its two saved workflows (`mistakes`, `corrected`) and its README. Its
+  `runme.py` fails unless every mistake goes wrong in exactly the listed way
+  and words, every correction runs with no warning and no uncaught failed
+  row and matches its Python twin, and the saved files match the list.
+
 ## 2. Checking
 
 - **REQ-EX-003:** a sub-example's `runme.py` runs each of its saved

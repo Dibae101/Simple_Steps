@@ -61,5 +61,6 @@ The following table maps requirements from `docs/spec/000-overview.md` to specif
 |:---|:---|:---|:---|
 | **REQ-EX-001**, **REQ-EX-002** | The examples' structure | (by construction; `TEST-EX-01/02` fail if a part is missing) | — |
 | **REQ-EX-003** | Each sub-example's runme passes | `TEST-EX-01` | `tests/test_examples.py` |
+| **REQ-EX-006** | Bad examples go wrong as listed; fixes run cleanly | `TEST-EX-01` (`bad_examples`) | `tests/test_examples.py` |
 | **REQ-EX-004** | The main example's runme passes | `TEST-EX-02` | `tests/test_examples.py` |
 | **REQ-EX-005** | Checks run in tests and from an install | `TEST-EX-01/02`; `scripts/smoke_install.py` stage "`python examples/runme.py` passes from the installed copy" | — |

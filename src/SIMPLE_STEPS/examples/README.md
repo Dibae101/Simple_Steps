@@ -14,7 +14,8 @@ examples/
 │
 ├── basic/            core verbs and data manipulation       → basic/README.md
 ├── dummy_llm/        resources: a dummy database and models → dummy_llm/README.md
-└── plotly_charts/    Plotly charts and other rich cells     → plotly_charts/README.md
+├── plotly_charts/    Plotly charts and other rich cells     → plotly_charts/README.md
+└── bad_examples/     mistakes, and how to fix them          → bad_examples/README.md
 ```
 
 Each sub-example has the same five parts:
@@ -105,6 +106,20 @@ A step is written the way simple-steps-core writes an operation:
 - **Combines read several steps:** `=join(wf["a"], wf["b"], on="city")`,
   `=stack(…)`, `=zip_(…)`.
 - **Resources are `res["name"]`:** `=summarize[mod.map()](wf["notes"], llm=res["llm"])`.
+
+## Bad examples
+
+[`bad_examples/`](bad_examples/README.md) is the other side: 20 mistakes —
+a bare step name, a misspelt setting, a column the input doesn't have, a
+tool typed `int` over a column with gaps, an argument hiding a column, an
+uncaught failure — each with what Simple Steps says about it and the step
+written right. Its `runme.py` checks that every mistake is refused, warned
+about or fails rows in exactly those words, and that every fix runs cleanly.
+
+```
+PASS  nullable_column  add_one[mod.map()](wf["gappy"])
+      → refused: gappy.n can be None, but add_one() takes n: int; accept int | None, or filter the Nones first
+```
 
 ## The main example
 

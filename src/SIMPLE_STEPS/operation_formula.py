@@ -494,8 +494,9 @@ def _reject_column_ref(node: ast.AST) -> None:
     if isinstance(node, ast.Subscript) and _wf_name(node.value) is not None:
         step = _wf_name(node.value)
         raise FormulaError(
-            f'wf["{step}"][…]: there are no column or row references. Make a '
-            f'select step — identity[mod.select(columns=[…])](wf["{step}"]) — '
+            f'wf["{step}"][…]: a step reads a whole step, not part of one. Make the '
+            f'part its own step — identity[mod.slice(start=…, stop=…)](wf["{step}"]) '
+            f'for rows, identity[mod.select(columns=[…])](wf["{step}"]) for columns — '
             "and read that"
         )
 
