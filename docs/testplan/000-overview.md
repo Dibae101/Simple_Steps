@@ -81,3 +81,15 @@ The following table maps requirements from `docs/spec/000-overview.md` to specif
 | **REQ-FORM-005** | `auto` is made explicit only with the current tool's verb | `TEST-FORM-05a–b` | `frontend/src/utils/formulaParts.test.ts`, `frontend/src/components/ToolEditor.switching.test.tsx` |
 | **REQ-FORM-006** | Every tool, switched to and run, runs or says why | `TEST-FORM-06`, `TEST-FORM-06b` | `tests/test_formula_switching.py` (+ `tests/fixtures/switch_sweep.py`), `frontend/src/components/ToolEditor.switching.test.tsx` |
 | **REQ-FORM-007** | Example formulas round-trip through the editor's parts | `TEST-FORM-07` | `tests/test_formula_switching.py` |
+
+### Environment Group ([spec 013](../spec/013-environment-explorer.md))
+| ID | Requirement | Test | File |
+|:---|:---|:---|:---|
+| **REQ-ENV-001** | `/api/environment` lists every tool, typed, built-ins included | `TEST-ENV-01` | `tests/test_environment.py` |
+| **REQ-ENV-002** | A resource input names the types that fit it | `TEST-ENV-02` | `tests/test_environment.py` |
+| **REQ-ENV-003** | Resource types and ready-made resources | `TEST-ENV-03` | `tests/test_environment.py` |
+| **REQ-ENV-004** | The explorer lists tools and resources, one filter | `TEST-ENV-04` | `frontend/src/components/EnvironmentExplorer.test.tsx` |
+| **REQ-ENV-005** | A tool's details: inputs, types, output, formula | `TEST-ENV-05a–b` | `frontend/src/utils/environment.test.ts`, `frontend/src/components/EnvironmentExplorer.test.tsx` |
+| **REQ-ENV-006** | A resource's and a type's details, bound tools | `TEST-ENV-06` | `frontend/src/components/EnvironmentExplorer.test.tsx` |
+| **REQ-ENV-007** | User Docs shows docs/usage_docs, bundled | `TEST-ENV-07a–c` | `frontend/src/utils/docs.test.ts`, `frontend/src/components/DocsPanel.test.tsx` |
+| **REQ-ENV-008** | A docs change marks the bundle stale | `TEST-ENV-08` | `tests/test_environment.py` |

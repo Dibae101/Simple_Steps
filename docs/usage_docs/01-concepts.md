@@ -73,6 +73,10 @@ Some verbs need no tool at all — `select`, `drop`, `rename`, `sort`,
 `slice`, `distinct` — and use the built-in `identity`. Leave the brackets
 off and Simple Steps picks the verb from the tool's signature.
 
+A step has **one** shape verb. To filter and then map, make two steps, the
+second reading the first. `retry`, `timeout` and `try_except` aren't shape
+verbs, so they can go alongside any of them.
+
 ## Column-by-name
 
 A per-row tool's parameters are filled **from columns of the same name**.

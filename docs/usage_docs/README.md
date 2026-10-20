@@ -2,7 +2,8 @@
 
 Start here if you want to **build** a Simple Steps application or **use** one.
 These pages are deliberately basic: they cover the ideas that stay put, and
-point at the examples for everything else.
+point at the examples for everything else. They're also in the app: open
+the **User Docs** panel from the sidebar.
 
 | page | read it when |
 |---|---|

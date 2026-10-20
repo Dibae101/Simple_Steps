@@ -764,3 +764,45 @@
 .docs-link-row:hover {
   background: rgba(255, 255, 255, 0.06);
 }
+
+/* ── User Docs layout (DocsPanel.tsx) ───────────────────────────────────── */
+
+.docs-panel { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.docs-list { overflow-y: auto; padding: 4px 0; }
+.docs-empty { padding: 8px 14px; color: #888; font-size: 0.8rem; }
+
+.docs-link-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 14px;
+  background: none;
+  border: none;
+  color: #ccc;
+  text-align: left;
+  cursor: pointer;
+}
+.docs-link-icon { margin-top: 2px; opacity: 0.75; }
+.docs-link-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.docs-link-title { font-size: 0.82rem; color: #ddd; }
+.docs-link-summary { font-size: 0.72rem; color: #888; line-height: 1.4; }
+
+.docs-reader-bar { padding: 4px 6px; border-bottom: 1px solid #2a2a2a; }
+.docs-back {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 6px; background: none; border: none; color: #ccc; font-size: 0.78rem; cursor: pointer;
+}
+.docs-back:hover { color: #fff; background: #2a2d2e; }
+
+.docs-reader {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 10px 14px 24px;
+  line-height: 1.6;
+  user-select: text;
+}
+.docs-repo-link { color: #bbb; text-decoration: underline dotted; cursor: help; }
+.docs-table-wrap { overflow-x: auto; }
+.docs-reader td p, .docs-reader th p { margin: 0; }

@@ -22,7 +22,7 @@ import { StepWiringProvider } from '../context/StepWiringContext';
 import ResourcesMenu from './ResourcesMenu';
 import WorkflowOverview from './WorkflowOverview';
 import { useConnection } from '../hooks/useConnection';
-import { fetchWorkspaceInfo, openWorkspace, type WorkspaceInfo } from '../services/api';
+import { fetchWorkspaceInfo, openWorkspace, type ResourceDeclaration, type WorkspaceInfo } from '../services/api';
 import './MainLayout.css';
 
 // ── Layout constants ───────────────────────────────────────────────────────
@@ -746,6 +746,7 @@ export default function MainLayout() {
                 currentView={activeActivityView}
                 refreshTrigger={sidebarRefreshTrigger}
                 availableOperations={availableOperations}
+                workflowResources={workflow.resources as Record<string, ResourceDeclaration> | undefined}
                 onListProjects={listSavedProjects}
                 onCreateProject={createNewProject}
                 onDeleteProject={removeProject}

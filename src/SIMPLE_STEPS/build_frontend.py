@@ -20,6 +20,9 @@ SOURCE_STAMP = ".source-hash"
 # Extensions that actually affect the built bundle.
 _SOURCE_SUFFIXES = (".ts", ".tsx", ".js", ".jsx", ".css", ".html")
 
+# The usage docs, relative to frontend/src: the User Docs panel bundles them.
+_BUNDLED_DOCS = ("..", "..", "docs", "usage_docs")
+
 
 def _is_test_only(name: str) -> bool:
     """Tests never reach the bundle, so editing one must not mark it stale."""
@@ -28,7 +31,9 @@ def _is_test_only(name: str) -> bool:
 
 def source_hash(src_dir: str) -> str:
     """
-    A stable hash of every build-relevant file under *src_dir*.
+    A stable hash of every build-relevant file under *src_dir*, and of the
+    usage docs the bundle carries (``docs/usage_docs/*.md``, imported by the
+    User Docs panel — spec 013, REQ-ENV-008).
 
     Content-based on purpose — mtimes are unusable here, since the build
     rewrites api.ts and restores it after the bundle is copied. Returns "" if
@@ -40,6 +45,13 @@ def source_hash(src_dir: str) -> str:
         return ""
 
     digest = hashlib.sha256()
+    docs_dir = os.path.join(src_dir, *_BUNDLED_DOCS)
+    if os.path.isdir(docs_dir):
+        for name in sorted(os.listdir(docs_dir)):
+            if name.endswith(".md"):
+                digest.update(f"usage_docs/{name}".encode())
+                with open(os.path.join(docs_dir, name), "rb") as f:
+                    digest.update(f.read())
     for root, dirnames, filenames in os.walk(src_dir):
         dirnames[:] = sorted(
             d for d in dirnames if d != "node_modules" and not d.startswith(".")
