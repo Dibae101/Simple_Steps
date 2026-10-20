@@ -3,7 +3,7 @@
   "id": "all-orchestrations",
   "name": "All orchestrations",
   "meta": {
-    "source": "simple-steps-core examples/all_orchestrations/pipeline.py",
+    "source": "simple-steps-core examples/all_orchestrations/pipeline.py; its Python twin is examples/basic/basic_pipeline.py",
     "syntax": "core operation syntax: tool[mod.verb(...)](wf[\"step\"], ...), docs/dev_plan/120"
   },
   "steps": [
@@ -310,7 +310,7 @@
     },
     {
       "name": "failure",
-      "expression": "risky[mod.map(name=\"out\"), mod.retry(times=1)](wf[\"readings\"])",
+      "expression": "risky[mod.map(name=\"out\"), mod.try_except(), mod.retry(times=1)](wf[\"readings\"])",
       "meta": {
         "label": "failure"
       }

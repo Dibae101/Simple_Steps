@@ -1,0 +1,87 @@
+{
+  "format_version": 2,
+  "id": "all-examples",
+  "name": "All examples",
+  "meta": {
+    "about": "One workflow over every sub-example's tools: basic's scale, is_big and add_n; dummy_llm's FakeDB and FakeLLM; plotly_charts' swatch and bar chart.",
+    "twin": "examples/main_pipeline.py: build_all_examples()"
+  },
+  "resources": {
+    "db": {
+      "source": "defined",
+      "type": "FakeDB"
+    },
+    "llm": {
+      "source": "defined",
+      "type": "FakeLLM",
+      "settings": {
+        "model": "main-1"
+      }
+    }
+  },
+  "steps": [
+    {
+      "name": "readings",
+      "expression": "to_rows[mod.source()](data='{\"city\": [\"SF\", \"NYC\", \"LA\", \"SF\"], \"n\": [1, 4, 2, 3]}')",
+      "meta": {
+        "label": "readings"
+      }
+    },
+    {
+      "name": "scored",
+      "expression": "scale[mod.map(name=\"score\")](wf[\"readings\"])",
+      "meta": {
+        "label": "scored"
+      }
+    },
+    {
+      "name": "big",
+      "expression": "is_big[mod.filter()](wf[\"scored\"])",
+      "meta": {
+        "label": "big"
+      }
+    },
+    {
+      "name": "regions",
+      "expression": "enrich[mod.map(name=\"region\")](wf[\"big\"], db=res[\"db\"])",
+      "meta": {
+        "label": "regions"
+      }
+    },
+    {
+      "name": "texts",
+      "expression": "identity[mod.rename(columns={\"city\": \"text\"})](wf[\"regions\"])",
+      "meta": {
+        "label": "texts"
+      }
+    },
+    {
+      "name": "summaries",
+      "expression": "summarize[mod.map(name=\"summary\")](wf[\"texts\"], llm=res[\"llm\"])",
+      "meta": {
+        "label": "summaries"
+      }
+    },
+    {
+      "name": "total_n",
+      "expression": "add_n[mod.collapse(initial=0)](wf[\"big\"])",
+      "meta": {
+        "label": "total_n"
+      }
+    },
+    {
+      "name": "swatches",
+      "expression": "swatch[mod.map(name=\"swatch\")](wf[\"big\"])",
+      "meta": {
+        "label": "swatches"
+      }
+    },
+    {
+      "name": "chart",
+      "expression": "bar_chart[mod.collapse()](wf[\"big\"])",
+      "meta": {
+        "label": "chart"
+      }
+    }
+  ]
+}

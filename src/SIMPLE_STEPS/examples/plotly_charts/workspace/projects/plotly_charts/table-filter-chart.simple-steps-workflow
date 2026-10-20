@@ -4,7 +4,8 @@
   "name": "Table, filter, chart",
   "meta": {
     "source": "app only: load a table, filter it, chart what is left",
-    "syntax": "core operation syntax, docs/dev_plan/120"
+    "syntax": "core operation syntax, docs/dev_plan/120",
+    "twin": "examples/plotly_charts/chart_pipeline.py: build_table_filter_chart()"
   },
   "steps": [
     {
@@ -16,7 +17,7 @@
     },
     {
       "name": "big",
-      "expression": "is_big[mod.filter()](wf[\"readings\"])",
+      "expression": "above_one[mod.filter()](wf[\"readings\"])",
       "meta": {
         "label": "big"
       }

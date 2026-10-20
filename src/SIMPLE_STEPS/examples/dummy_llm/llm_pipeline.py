@@ -1,0 +1,65 @@
+"""
+llm_pipeline.py — the dummy LLM example's workflow, written in Python.
+
+The twin of ``workspace/projects/dummy_llm/resources.simple-steps-workflow``:
+one Python line per saved step, in simple-steps-core's syntax. ``runme.py``
+runs both and checks every step's output is the same.
+
+Resources are declared on the workflow (``wf.define``: a type and literal
+settings, never an object), and the objects themselves are the caller's —
+:func:`live_resources` — handed to each run. That's the split the app makes
+too: the saved file declares, the server owns the live objects.
+
+Import this after the app (``runme.py`` does): the tools come from it.
+"""
+
+from __future__ import annotations
+
+from simple_steps_core import grid
+from simple_steps_core.grid import mod, res
+
+from SIMPLE_STEPS.example_check import tool_handles
+
+from llm_tools import FakeDB, FakeLLM, TinyLLM
+
+to_rows, identity, enrich, summarize = tool_handles("to_rows", "identity", "enrich", "summarize")
+
+
+def build_resources() -> grid.Workflow:
+    """``resources``: unbound tools taking a resource, bound tools on one
+    named instance, and a ready-made resource with a saved override."""
+    wf = grid.Workflow()
+    wf.define("db", FakeDB)
+    wf.define("llm", FakeLLM, model="fake-1")
+    wf.define("tiny", TinyLLM, model="tiny-1")
+    # The app provides house_llm ready-made (model="house-1"); the workflow
+    # saves an override, so the step runs with the merged settings.
+    wf.define("house_llm", FakeLLM, model="house-2")
+
+    wf["readings"] = to_rows[mod.source()](data='{"city": ["SF", "NYC", "SF", "LA"], "n": [1, 2, 3, 2]}')
+    wf["notes"] = to_rows[mod.source()](data='{"text": ["a", "b"]}')
+    wf["keys"] = identity[mod.rename(columns={"city": "key"})](wf["readings"])
+
+    # unbound tools: the resource is an argument, chosen per step
+    wf["regions"] = enrich[mod.map()](wf["readings"], db=res["db"])
+    wf["summaries"] = summarize[mod.map()](wf["notes"], llm=res["llm"])
+    # The saved step passes res["tiny"] by position; the app binds it to the
+    # one parameter its type fits. Core takes resources by keyword.
+    wf["tiny_summaries"] = summarize[mod.map()](wf["notes"], llm=res["tiny"])
+
+    # bound tools: a marked method of one named instance
+    wf["regions_bound"] = res["db"].lookup[mod.map()](wf["keys"])
+    wf["hello"] = res["llm"].complete[mod.source()](prompt="hi")
+    wf["inferred"] = res["db"].lookup(wf["keys"])
+
+    # a resource step's output feeds later steps like any other
+    wf["region_table"] = identity[mod.select(columns=["city", "value"])](wf["regions"])
+    wf["house_summaries"] = summarize[mod.map()](wf["notes"], llm=res["house_llm"])
+    return wf
+
+
+def live_resources() -> dict:
+    """The objects the twin runs with — what the app builds from the
+    declarations, once per session."""
+    return {"db": FakeDB(), "llm": FakeLLM(model="fake-1"), "tiny": TinyLLM(model="tiny-1"),
+            "house_llm": FakeLLM(model="house-2")}

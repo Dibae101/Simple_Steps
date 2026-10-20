@@ -114,6 +114,10 @@ def main() -> int:
                f"found {version}; simple-steps-core requires >= 3.10")
 
         # ── 2. build the wheel ──────────────────────────────────────────
+        # setuptools stages files in build/lib and never removes one that left
+        # the source, so a wheel built here would ship deleted files (a moved
+        # example kept serving from its old path). Build from a clean stage.
+        shutil.rmtree(Path(REPO_ROOT) / "build" / "lib", ignore_errors=True)
         b = run([sys.executable, "-m", "build", "--wheel", "--outdir", str(dist)],
                 cwd=REPO_ROOT)
         wheels = list(dist.glob("*.whl"))
@@ -177,6 +181,12 @@ def main() -> int:
         apps = sorted((user / "examples").rglob("app.py"))
         report("`simple-steps --load-examples` copies the examples", le.returncode == 0 and bool(apps),
                (le.stderr or le.stdout)[-300:])
+        # Every example's saved workflows, run as the UI runs them and checked
+        # against their Python twins: from the copy a user gets, not the repo.
+        if (user / "examples" / "runme.py").exists():
+            rm = run([py, str(user / "examples" / "runme.py")], cwd=str(user))
+            report("`python examples/runme.py` passes from the installed copy", rm.returncode == 0,
+                   (rm.stdout + rm.stderr)[-1500:])
         if apps:
             run_port = args.port + 1
             with open(work / "run.log", "w") as log:

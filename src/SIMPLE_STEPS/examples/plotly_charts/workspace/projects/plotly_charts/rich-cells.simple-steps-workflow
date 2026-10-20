@@ -3,8 +3,9 @@
   "id": "rich-cells",
   "name": "Rich cells",
   "meta": {
-    "source": "app only: docs/dev_plan/122 \u00a74 (S4)",
-    "syntax": "core operation syntax, docs/dev_plan/120"
+    "source": "app only: docs/dev_plan/122 §4 (S4)",
+    "syntax": "core operation syntax, docs/dev_plan/120",
+    "twin": "examples/plotly_charts/chart_pipeline.py: build_rich_cells()"
   },
   "steps": [
     {

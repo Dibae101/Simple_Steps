@@ -4,7 +4,8 @@
   "name": "Resources",
   "meta": {
     "source": "simple-steps-core examples/all_orchestrations/pipeline.py build_resources()",
-    "syntax": "core operation syntax with res[\"name\"] (core-proposals/007, docs/dev_plan/122 \u00a72)"
+    "syntax": "core operation syntax with res[\"name\"] (core-proposals/007, docs/dev_plan/122 §2)",
+    "twin": "examples/dummy_llm/llm_pipeline.py: build_resources()"
   },
   "resources": {
     "db": {

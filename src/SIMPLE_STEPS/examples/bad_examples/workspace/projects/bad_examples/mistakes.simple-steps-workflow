@@ -1,0 +1,186 @@
+{
+  "format_version": 2,
+  "id": "mistakes",
+  "name": "Mistakes",
+  "meta": {
+    "about": "Each step after the sources is a mistake Simple Steps refuses, warns about, or runs with failed rows. Run the steps one at a time: Run All stops at the first refused step.",
+    "built_from": "examples/bad_examples/bad_cases.py"
+  },
+  "steps": [
+    {
+      "name": "readings",
+      "expression": "to_rows[mod.source()](data='{\"city\": [\"SF\", \"NYC\", \"LA\"], \"n\": [1, 0, 2]}')",
+      "meta": {
+        "label": "readings"
+      }
+    },
+    {
+      "name": "more",
+      "expression": "to_rows[mod.source()](data='{\"city\": [\"BOS\"], \"n\": [5]}')",
+      "meta": {
+        "label": "more"
+      }
+    },
+    {
+      "name": "gappy",
+      "expression": "to_rows[mod.source()](data='{\"n\": [1, null, 3]}')",
+      "meta": {
+        "label": "gappy"
+      }
+    },
+    {
+      "name": "people",
+      "expression": "to_rows[mod.source()](data='{\"first\": [\"Ada\", \"Bo\"]}')",
+      "meta": {
+        "label": "people"
+      }
+    },
+    {
+      "name": "scored",
+      "expression": "double_n[mod.map()](wf[\"readings\"])",
+      "meta": {
+        "label": "scored"
+      }
+    },
+    {
+      "name": "bare_name",
+      "expression": "double_n[mod.map()](readings)",
+      "meta": {
+        "label": "bare_name"
+      }
+    },
+    {
+      "name": "quoted_name",
+      "expression": "double_n[mod.map()](\"readings\")",
+      "meta": {
+        "label": "quoted_name"
+      }
+    },
+    {
+      "name": "missing_step",
+      "expression": "double_n[mod.map()](wf[\"reading\"])",
+      "meta": {
+        "label": "missing_step"
+      }
+    },
+    {
+      "name": "two_inputs",
+      "expression": "double_n[mod.map()](wf[\"readings\"], wf[\"more\"])",
+      "meta": {
+        "label": "two_inputs"
+      }
+    },
+    {
+      "name": "row_selection",
+      "expression": "double_n[mod.map()](wf[\"readings\"][0:2])",
+      "meta": {
+        "label": "row_selection"
+      }
+    },
+    {
+      "name": "unknown_tool",
+      "expression": "dubble_n[mod.map()](wf[\"readings\"])",
+      "meta": {
+        "label": "unknown_tool"
+      }
+    },
+    {
+      "name": "unknown_modifier",
+      "expression": "double_n[mod.mapp()](wf[\"readings\"])",
+      "meta": {
+        "label": "unknown_modifier"
+      }
+    },
+    {
+      "name": "no_verb",
+      "expression": "double_n[mod.retry(times=2)](wf[\"readings\"])",
+      "meta": {
+        "label": "no_verb"
+      }
+    },
+    {
+      "name": "misspelt_setting",
+      "expression": "double_n[mod.map(nme=\"doubled\")](wf[\"readings\"])",
+      "meta": {
+        "label": "misspelt_setting"
+      }
+    },
+    {
+      "name": "missing_setting",
+      "expression": "double_n[mod.map(), mod.retry()](wf[\"readings\"])",
+      "meta": {
+        "label": "missing_setting"
+      }
+    },
+    {
+      "name": "setting_is_a_step",
+      "expression": "identity[mod.sort(by=wf[\"readings\"])](wf[\"readings\"])",
+      "meta": {
+        "label": "setting_is_a_step"
+      }
+    },
+    {
+      "name": "not_a_literal",
+      "expression": "greet[mod.map()](wf[\"readings\"], name=str.upper(\"ada\"))",
+      "meta": {
+        "label": "not_a_literal"
+      }
+    },
+    {
+      "name": "missing_column",
+      "expression": "identity[mod.select(columns=[\"score\"])](wf[\"readings\"])",
+      "meta": {
+        "label": "missing_column"
+      }
+    },
+    {
+      "name": "parameter_not_a_column",
+      "expression": "greet[mod.map()](wf[\"people\"])",
+      "meta": {
+        "label": "parameter_not_a_column"
+      }
+    },
+    {
+      "name": "output_replaces_input",
+      "expression": "double_n[mod.map(name=\"n\")](wf[\"readings\"])",
+      "meta": {
+        "label": "output_replaces_input"
+      }
+    },
+    {
+      "name": "nullable_column",
+      "expression": "add_one[mod.map()](wf[\"gappy\"])",
+      "meta": {
+        "label": "nullable_column"
+      }
+    },
+    {
+      "name": "table_returns_text",
+      "expression": "describe_text[mod.table()](wf[\"readings\"])",
+      "meta": {
+        "label": "table_returns_text"
+      }
+    },
+    {
+      "name": "argument_hides_column",
+      "expression": "label[mod.map()](wf[\"readings\"], city=\"Paris\")",
+      "meta": {
+        "label": "argument_hides_column"
+      }
+    },
+    {
+      "name": "output_overwrites_value",
+      "expression": "double_n[mod.map()](wf[\"scored\"])",
+      "meta": {
+        "label": "output_overwrites_value"
+      }
+    },
+    {
+      "name": "uncaught_failure",
+      "expression": "reciprocal[mod.map()](wf[\"readings\"])",
+      "meta": {
+        "label": "uncaught_failure"
+      }
+    }
+  ]
+}

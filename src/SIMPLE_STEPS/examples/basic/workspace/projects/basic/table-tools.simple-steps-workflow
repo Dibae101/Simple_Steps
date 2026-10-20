@@ -1,0 +1,144 @@
+{
+  "format_version": 2,
+  "id": "table-tools",
+  "name": "Table tools",
+  "meta": {
+    "about": "Every data-manipulation tool in basic_tools.py: sources, per-row text and analysis tools, whole-table tools, and diagnostics.",
+    "twin": "examples/basic/basic_pipeline.py: build_table_tools()"
+  },
+  "steps": [
+    {
+      "name": "numbers",
+      "expression": "make_range[mod.source()](n=6, start=1)",
+      "meta": {
+        "label": "numbers"
+      }
+    },
+    {
+      "name": "doubled",
+      "expression": "slow_double[mod.map(name=\"doubled\")](wf[\"numbers\"], delay_ms=0)",
+      "meta": {
+        "label": "doubled"
+      }
+    },
+    {
+      "name": "checked",
+      "expression": "sometimes_fails[mod.map(name=\"checked\"), mod.try_except(default=-1)](wf[\"numbers\"])",
+      "meta": {
+        "label": "checked"
+      }
+    },
+    {
+      "name": "series",
+      "expression": "make_series[mod.expand(name=\"item\")](wf[\"numbers\"], length=2)",
+      "meta": {
+        "label": "series"
+      }
+    },
+    {
+      "name": "people",
+      "expression": "sample_people[mod.source()](count=8, seed=0)",
+      "meta": {
+        "label": "people"
+      }
+    },
+    {
+      "name": "staged",
+      "expression": "classify_age[mod.map(name=\"stage\")](wf[\"people\"])",
+      "meta": {
+        "label": "staged"
+      }
+    },
+    {
+      "name": "banded",
+      "expression": "bucket_score[mod.map(name=\"band\")](wf[\"people\"], scheme=\"halves\")",
+      "meta": {
+        "label": "banded"
+      }
+    },
+    {
+      "name": "top3",
+      "expression": "top_n[mod.table()](wf[\"people\"], column=\"score\", n=3)",
+      "meta": {
+        "label": "top3"
+      }
+    },
+    {
+      "name": "per_city",
+      "expression": "count_by[mod.table()](wf[\"people\"], column=\"city\")",
+      "meta": {
+        "label": "per_city"
+      }
+    },
+    {
+      "name": "ages",
+      "expression": "add_computed[mod.table()](wf[\"people\"], source_column=\"age\", new_column=\"age_x2\", operation=\"double\")",
+      "meta": {
+        "label": "ages"
+      }
+    },
+    {
+      "name": "described",
+      "expression": "describe_table[mod.table()](wf[\"people\"])",
+      "meta": {
+        "label": "described"
+      }
+    },
+    {
+      "name": "words",
+      "expression": "split_text[mod.source()](text=\"alpha beta,gamma,delta epsilon zeta\")",
+      "meta": {
+        "label": "words"
+      }
+    },
+    {
+      "name": "counted",
+      "expression": "word_count[mod.map(name=\"words\")](wf[\"words\"])",
+      "meta": {
+        "label": "counted"
+      }
+    },
+    {
+      "name": "shout",
+      "expression": "to_upper[mod.map(name=\"upper\")](wf[\"words\"])",
+      "meta": {
+        "label": "shout"
+      }
+    },
+    {
+      "name": "backward",
+      "expression": "reverse_text[mod.map(name=\"reversed\")](wf[\"words\"])",
+      "meta": {
+        "label": "backward"
+      }
+    },
+    {
+      "name": "as_values",
+      "expression": "identity[mod.rename(columns={\"text\": \"value\"})](wf[\"words\"])",
+      "meta": {
+        "label": "as_values"
+      }
+    },
+    {
+      "name": "records",
+      "expression": "build_record[mod.map(name=\"record\")](wf[\"as_values\"])",
+      "meta": {
+        "label": "records"
+      }
+    },
+    {
+      "name": "empty",
+      "expression": "empty_table[mod.source()](columns=\"a,b\")",
+      "meta": {
+        "label": "empty"
+      }
+    },
+    {
+      "name": "empty_described",
+      "expression": "describe_table[mod.table()](wf[\"empty\"])",
+      "meta": {
+        "label": "empty_described"
+      }
+    }
+  ]
+}
