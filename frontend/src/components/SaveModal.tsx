@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import type { ProjectInfo } from '../services/api';
+import { uniqueWorkflowName, workflowNameTaken } from '../utils/workflowNames';
 import './SaveModal.css';
 
 interface SaveModalProps {
@@ -21,6 +22,8 @@ export default function SaveModal({
   const [projects, setProjects] = useState<ProjectInfo[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState('');
   const [pipelineName, setPipelineName] = useState(defaultName);
+  // Once the user types a name, switching folders must not replace it.
+  const [nameEdited, setNameEdited] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
   const [showNewProject, setShowNewProject] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -29,6 +32,7 @@ export default function SaveModal({
   useEffect(() => {
     if (!isOpen) return;
     setPipelineName(defaultName);
+    setNameEdited(false);
     setError('');
     setShowNewProject(false);
     setNewProjectName('');
@@ -46,6 +50,17 @@ export default function SaveModal({
       })
       .catch(() => setError('Could not load projects'));
   }, [isOpen, defaultName, onListProjects, preselectProjectId]);
+
+  // Like VS Code: the suggested name is always one that is free in the chosen
+  // folder (`name-2`, `name-3`, …), until the user types their own.
+  const existingIds = projects.find(p => p.id === selectedProjectId)?.pipelines ?? [];
+  useEffect(() => {
+    if (!isOpen || nameEdited) return;
+    setPipelineName(uniqueWorkflowName(defaultName, existingIds));
+    // existingIds is derived from these two; listing it would loop.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, nameEdited, defaultName, projects, selectedProjectId]);
+  const nameTaken = !!pipelineName.trim() && workflowNameTaken(pipelineName, existingIds);
 
   if (!isOpen) return null;
 
@@ -72,8 +87,8 @@ export default function SaveModal({
       const proj = projects.find(p => p.id === selectedProjectId);
       await onSave(selectedProjectId, pipelineName.trim(), proj?.name ?? selectedProjectId);
       onClose();
-    } catch {
-      setError('Save failed — is the backend running?');
+    } catch (err) {
+      setError(err instanceof Error && err.message ? err.message : 'Save failed — is the backend running?');
     } finally {
       setSaving(false);
     }
@@ -94,7 +109,7 @@ export default function SaveModal({
             <input
               className="modal-input"
               value={pipelineName}
-              onChange={e => setPipelineName(e.target.value)}
+              onChange={e => { setPipelineName(e.target.value); setNameEdited(true); }}
               onKeyDown={e => e.key === 'Enter' && handleSave()}
               autoFocus
               placeholder="e.g. youtube-analysis"
@@ -140,6 +155,11 @@ export default function SaveModal({
             )}
           </div>
 
+          {nameTaken && !error && (
+            <div className="modal-warning">
+              A workflow with this name already exists in this folder — saving will ask before replacing it.
+            </div>
+          )}
           {error && <div className="modal-error">{error}</div>}
         </div>
 

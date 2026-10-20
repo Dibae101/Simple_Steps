@@ -133,6 +133,12 @@
 }
 .modal-confirm-btn:hover { background: #1177bb; }
 
+.modal-warning {
+  color: #cca700;
+  font-size: 0.78rem;
+  padding: 4px 0 0;
+}
+
 .modal-error {
   color: #f48771;
   font-size: 0.78rem;

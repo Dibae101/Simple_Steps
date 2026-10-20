@@ -951,10 +951,21 @@ export default function useWorkflow() {
    * The pipeline id is derived from the name so the filename on disk always
    * matches the id we store in the tab (no UUID/slug mismatch).
    */
-  const saveWorkflow = useCallback(async (projectId: string, pipelineName: string): Promise<PipelineFile> => {
+  /**
+   * Save the current workflow as `pipelineName` in `projectId`.
+   *
+   * `pipelineId` pins the file to write (an already-open workflow keeps its
+   * file even after a rename); without it the id is derived from the name.
+   * `overwrite: false` rejects with `WorkflowExistsError` if that file exists.
+   */
+  const saveWorkflow = useCallback(async (
+    projectId: string,
+    pipelineName: string,
+    { pipelineId: fixedId, overwrite = true }: { pipelineId?: string; overwrite?: boolean } = {},
+  ): Promise<PipelineFile> => {
     const current = workflowRef.current;
     // Derive a stable slug from the name so filename === id
-    const pipelineId = pipelineName
+    const pipelineId = fixedId || pipelineName
       .toLowerCase()
       .trim()
       .replace(/[^a-z0-9]+/g, '-')
@@ -978,7 +989,7 @@ export default function useWorkflow() {
         formula: s.formula ?? s.operation ?? '',
       })),
     };
-    return savePipeline(projectId, pipeline);
+    return savePipeline(projectId, pipeline, { overwrite });
   }, []);
 
   /** Load a pipeline from a project and replace the current workflow. */

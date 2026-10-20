@@ -18,11 +18,12 @@ import Icon from './Icon';
 import type { ActivityView } from './ActivityBar';
 import type { Workflow } from '../types/models';
 import { initialWorkflow } from '../mocks/initialData';
+import { nextUntitledName } from '../utils/workflowNames';
 import { StepWiringProvider } from '../context/StepWiringContext';
 import ResourcesMenu from './ResourcesMenu';
 import WorkflowOverview from './WorkflowOverview';
 import { useConnection } from '../hooks/useConnection';
-import { fetchWorkspaceInfo, openWorkspace, type ResourceDeclaration, type WorkspaceInfo } from '../services/api';
+import { fetchWorkspaceInfo, openWorkspace, WorkflowExistsError, type ResourceDeclaration, type WorkspaceInfo } from '../services/api';
 import './MainLayout.css';
 
 // ── Layout constants ───────────────────────────────────────────────────────
@@ -52,6 +53,9 @@ interface OpenTab extends WorkflowTab {
   pipelineId?: string;
   workflow: Workflow;
 }
+
+/** One tab per workflow file: the key every open/save path agrees on. */
+const pipelineTabKey = (projectId: string, pipelineId: string) => `${projectId}::${pipelineId}`;
 
 interface DetachedWindow {
   id: string;          // unique window id (not step id — same step can detach multiple times)
@@ -228,7 +232,11 @@ export default function MainLayout() {
     if (activeTab?.projectId && activeTab?.pipelineId) {
       try {
         suppressModified.current = true;
-        await saveWorkflow(activeTab.projectId, activeTab.workflow.name || activeTab.pipelineId);
+        // Write back to the file this tab came from, even after a rename —
+        // deriving the file from the (new) name would fork it into a second file.
+        await saveWorkflow(activeTab.projectId, activeTab.workflow.name || activeTab.pipelineId, {
+          pipelineId: activeTab.pipelineId,
+        });
         setOpenTabs(prev => prev.map(t => t.isActive ? { ...t, isModified: false } : t));
       } catch (e) {
         console.error('Save failed', e);
@@ -251,13 +259,28 @@ export default function MainLayout() {
   const handleModalSave = useCallback(async (projectId: string, pipelineName: string, projectDisplayName?: string) => {
     suppressModified.current = true;
     try {
-      const saved = await saveWorkflow(projectId, pipelineName);
-      // saved.id is the slug derived from pipelineName, matching the filename on disk
-      setOpenTabs(prev => prev.map(t => {
+      // Create-only first, so an existing workflow of the same name is never
+      // replaced silently. Re-saving the tab's own file is not a conflict.
+      let saved;
+      try {
+        saved = await saveWorkflow(projectId, pipelineName, { overwrite: false });
+      } catch (err) {
+        if (!(err instanceof WorkflowExistsError)) throw err;
+        const ownFile = activeTab?.projectId === err.projectId && activeTab?.pipelineId === err.pipelineId;
+        if (!ownFile && !window.confirm(`${err.message}\n\nReplace it?`)) {
+          throw new Error(`"${pipelineName}" already exists in this project — choose a different name.`);
+        }
+        saved = await saveWorkflow(projectId, pipelineName, { pipelineId: err.pipelineId });
+      }
+      // saved.id is the file stem the backend wrote to — the same id the
+      // sidebar and file tree open it by. Any other tab on that file now shows
+      // replaced content, so it is dropped: one file never has two tabs.
+      const key = pipelineTabKey(projectId, saved.id);
+      setOpenTabs(prev => prev.filter(t => t.isActive || t.id !== key).map(t => {
         if (!t.isActive) return t;
         return {
           ...t,
-          id: `${projectId}::${saved.id}`,
+          id: key,
           title: pipelineName,
           projectId,
           projectDisplayName: projectDisplayName ?? projectId,
@@ -270,7 +293,7 @@ export default function MainLayout() {
     } finally {
       suppressModified.current = false;
     }
-  }, [saveWorkflow]);
+  }, [activeTab, saveWorkflow]);
 
   const handleRename = useCallback((newName: string) => {
     setOpenTabs(prev => prev.map(t => {
@@ -294,16 +317,26 @@ export default function MainLayout() {
   }, [handleSave, handleSaveAs]);
 
   /** Open or focus a pipeline tab, loading the workflow into the hook. */
+  // Keys of workflows still being fetched: a second click while the first is
+  // loading must not open a second tab on the same file.
+  const openingTabs = useRef(new Set<string>());
+  const openTabsRef = useRef(openTabs);
+  openTabsRef.current = openTabs;
+
   const openPipelineTab = useCallback(async (projectId: string, pipelineId: string) => {
-    const tabKey = `${projectId}::${pipelineId}`;
-    const existing = openTabs.find(t => t.id === tabKey);
-    if (existing) {
-      setOpenTabs(prev => prev.map(t => ({ ...t, isActive: t.id === tabKey })));
+    const focusTab = (key: string): boolean => {
+      const existing = openTabsRef.current.find(t => t.id === key);
+      if (!existing) return false;
+      setOpenTabs(prev => prev.map(t => ({ ...t, isActive: t.id === key })));
       suppressModified.current = true;
       loadWorkflowObject(existing.workflow);
       setTimeout(() => { suppressModified.current = false; }, 0);
-      return;
-    }
+      return true;
+    };
+
+    const requestedKey = pipelineTabKey(projectId, pipelineId);
+    if (focusTab(requestedKey) || openingTabs.current.has(requestedKey)) return;
+    openingTabs.current.add(requestedKey);
     let wf: Workflow;
     try {
       wf = await fetchWorkflow(projectId, pipelineId);
@@ -312,7 +345,14 @@ export default function MainLayout() {
       console.error('Failed to open pipeline', { projectId, pipelineId, err });
       window.alert(`Failed to open pipeline "${pipelineId}": ${message}`);
       return;
+    } finally {
+      openingTabs.current.delete(requestedKey);
     }
+    // The backend reports the file stem as the id, so the same file reached by
+    // another spelling (file tree vs. sidebar) still lands on one tab.
+    pipelineId = wf.id || pipelineId;
+    const tabKey = pipelineTabKey(projectId, pipelineId);
+    if (focusTab(tabKey)) return;
     const newTab: OpenTab = {
       id: tabKey,
       title: wf.name,
@@ -329,7 +369,7 @@ export default function MainLayout() {
     suppressModified.current = true;
     loadWorkflowObject(wf);
     setTimeout(() => { suppressModified.current = false; }, 0);
-  }, [openTabs, fetchWorkflow, loadWorkflowObject]);
+  }, [fetchWorkflow, loadWorkflowObject]);
 
   // NOTE: openWorkflowObjectTab is kept for future use (e.g. opening demo workflows).
   // @ts-expect-error TS6133 — reserved for future use
@@ -384,15 +424,18 @@ export default function MainLayout() {
   }, [openTabs, loadWorkflowObject]);
 
   const handleNewTab = useCallback(() => {
+    // VS Code style: each new workflow gets the lowest free Untitled-N, so two
+    // new tabs never share a name (and so never default to the same file).
+    const name = nextUntitledName(openTabsRef.current.map(t => t.title));
     const blank: Workflow = {
       id: `new-${Date.now()}`,
-      name: 'Untitled',
+      name,
       created_at: new Date().toISOString(),
       steps: [],
     };
     const newTab: OpenTab = {
       id: blank.id,
-      title: 'Untitled',
+      title: name,
       isActive: true,
       workflow: blank,
     };
