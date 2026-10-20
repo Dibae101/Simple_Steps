@@ -12,9 +12,7 @@ python examples/dummy_llm/runme.py
 
 | file | what it is |
 |---|---|
-| [`llm_tools.py`](llm_tools.py) | the resource types and the tools that use them |
-| [`llm_resources.py`](llm_resources.py) | what the app offers: the types, and ready-made `house_llm` / `local_llm` |
-| [`local_llm.py`](local_llm.py) | `OllamaLLM`: a real model served by Ollama |
+| [`llm_tools.py`](llm_tools.py) | the resource types, the tools that use them, `OllamaLLM` (a real model served by Ollama), and what an app offers: `TYPES` and the ready-made `house_llm` / `local_llm` |
 | [`llm_pipeline.py`](llm_pipeline.py) | the `resources` workflow in Python, and the objects it runs with |
 
 ## Three marks

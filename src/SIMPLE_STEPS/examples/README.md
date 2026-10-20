@@ -138,17 +138,22 @@ their resources, and `all-examples` uses them together:
 
 ## Adding a sub-example
 
-Copy a sub-example folder and rename its modules. Two rules keep the main
-example able to import every sub-example at once:
+Copy a sub-example folder and rename its modules. Each sub-example folder is
+a package (it has an `__init__.py`), so the main app imports its tools like
+any other module — `from basic import basic_tools` — with nothing added to
+the import path. Two rules keep that working:
 
-- **Module names are unique across the examples** (`basic_tools`,
-  `llm_tools`, `chart_pipeline`, …). The main app puts every sub-example folder
-  on the import path, so two files both called `tools.py` would collide.
+- **The tools module imports nothing from its own folder.** The main app
+  imports it as `basic.basic_tools`, where a sibling's bare name
+  (`import other_module`) doesn't resolve. That's why everything `dummy_llm`
+  offers — its dummy models, the Ollama model, `TYPES` and `ready_made()` — is
+  in one file, `llm_tools.py`. The sub-example's own `app.py`, `runme.py` and
+  `_pipeline.py` run from its folder, so they may import siblings.
 - **No folder is named after a library** — that's why the Plotly example is
   `plotly_charts/`, not `plotly/`, which would hide the real `plotly`.
 
-Then add the folder to `SUB_EXAMPLES` in [`runme.py`](runme.py) and to the
-`for sub in …` list in [`app.py`](app.py).
+Then import it in [`app.py`](app.py), add its tools module to `tools=[…]`, and
+add the folder to `SUB_EXAMPLES` in [`runme.py`](runme.py).
 
 ## Built-in tools
 

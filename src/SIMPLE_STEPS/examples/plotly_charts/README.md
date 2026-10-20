@@ -11,8 +11,8 @@ simple-steps run examples/plotly_charts/app.py
 python examples/plotly_charts/runme.py
 ```
 
-The folder isn't called `plotly/`: the main example puts every example folder
-on the import path, where a `plotly` folder would hide the library itself.
+The folder isn't called `plotly/`: the main example imports it as a package
+from the examples folder, where a `plotly` folder would hide the library itself.
 
 ## Workflows
 
