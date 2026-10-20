@@ -103,9 +103,39 @@ export function autoForWiring(parts: FormulaParts, isShape: (kind: string) => bo
   return shape?.kind === AUTO ? withShapeVerb(parts.modifiers, 'source', isShape) : parts.modifiers;
 }
 
-/** Changing the modifiers makes them explicit: `auto` becomes the verb it resolves to now. */
-export function explicitModifiers(mods: ModifierPart[], resolved: string): ModifierPart[] {
+/**
+ * Changing the modifiers makes them explicit: `auto` becomes the verb it
+ * resolves to now. *resolved* is `null` until core has answered for the
+ * step's current tool and wiring; `auto` is then kept, never guessed.
+ */
+export function explicitModifiers(mods: ModifierPart[], resolved: string | null): ModifierPart[] {
+  if (!resolved) return mods;
   return mods.map((m) => (m.kind === AUTO ? { kind: resolved, params: {} } : m));
+}
+
+/** What the editor reads from core's catalog entry for a modifier. */
+export interface VerbInfo {
+  class: 'shape' | 'execution';
+  /** `false` for a verb that applies no tool (select, sort, …). */
+  takes_tool?: boolean | 'optional' | null;
+  /** The tool such a verb runs on (`identity`). */
+  default_tool?: string | null;
+}
+
+/**
+ * *parts* with the shape verb *verb* chosen. A step has one shape verb, so it
+ * replaces the current one (`auto` included); execution modifiers stay. A
+ * verb that applies no tool runs on its own tool (core's `default_tool`), so
+ * the old tool and its arguments go with it.
+ */
+export function withChosenVerb(parts: FormulaParts, verb: string, catalog: Record<string, VerbInfo>): FormulaParts {
+  const isShape = (kind: string) => catalog[kind]?.class !== 'execution';
+  const modifiers = withShapeVerb(parts.modifiers, verb, isShape);
+  const info = catalog[verb];
+  if (info?.takes_tool === false && info.default_tool && parts.tool !== info.default_tool) {
+    return { ...parts, tool: info.default_tool, bound_to: null, resources: [], arguments: {}, modifiers };
+  }
+  return { ...parts, modifiers };
 }
 
 /** Whether an edit changed what the step reads or how — the cue to re-infer its verb. */

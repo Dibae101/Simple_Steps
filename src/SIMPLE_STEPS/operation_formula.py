@@ -241,6 +241,7 @@ def compile_formula(formula: str) -> Compiled:
     if isinstance(tree, ast.Subscript) and _bound(tree.value):   # res["llm"].tool[mod.source()]
         resource, method = _bound(tree.value)
         compiled = Compiled(method, _modifiers(tree.slice), None, {}, bound_to=resource)
+        _check_stack(compiled.modifiers, method, f'res["{resource}"].{method}')
         if compiled.verb not in NO_INPUT_VERBS:
             raise FormulaError(
                 f'{compiled.verb or "this"} reads a step: '
@@ -266,6 +267,7 @@ def compile_formula(formula: str) -> Compiled:
         tool = _tool_name(tree.value)                    # tool[mods]: no input
         modifiers = _modifiers(tree.slice)
         compiled = Compiled(tool, modifiers, None, {})
+        _check_stack(modifiers, tool, tool)
         verb = compiled.verb
         if verb not in NO_INPUT_VERBS:
             raise FormulaError(
@@ -310,6 +312,7 @@ def _with_call(tool: str, modifiers: Optional[List[dict]], call: ast.Call,
 
     verb = compiled.verb
     if modifiers is not None:
+        _check_stack(modifiers, tool, f'res["{bound_to}"].{tool}' if bound_to else tool)
         if verb is None:
             raise FormulaError(
                 "the brackets need a shape verb (map, filter, select, …); "
@@ -465,6 +468,31 @@ def _check_settings(kind: str, params: Dict[str, Any]) -> None:
     problems = grid.check_modifier(kind, params)
     if problems:
         raise FormulaError("; ".join(problems))
+
+
+def _check_stack(modifiers: List[dict], tool: str, written: str) -> None:
+    """Core's rules for the brackets, checked as you type rather than at Run:
+    one shape verb per step, and a verb that applies no tool keeps its own
+    (``identity[mod.select(…)]``). *written* is the tool as the formula
+    spells it, for the message."""
+    catalog = grid.modifier_catalog()
+    shapes = [m["kind"] for m in reversed(modifiers) if m["kind"] in grid.shape_verbs()]
+    if len(shapes) > 1:
+        raise FormulaError(
+            f"{len(shapes)} shape verbs in one step ({', '.join(shapes)}); at most one "
+            "is allowed. Split them into separate steps, the second reading the first "
+            'with wf["…"]'
+        )
+    if not shapes:
+        return
+    verb, info = shapes[0], catalog[shapes[0]]
+    if info.get("takes_tool") is False and tool != info.get("default_tool"):
+        default = info["default_tool"]
+        raise FormulaError(
+            f"{verb} applies no tool, so it runs on {default}: "
+            f'{default}[{_written(modifiers)}](wf["…"]). To compute with {written}, '
+            f'use map: {written}[mod.map()](wf["…"])'
+        )
 
 
 def _setting(node: ast.AST, kind: str, name: str) -> Any:

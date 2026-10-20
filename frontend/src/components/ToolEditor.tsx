@@ -11,7 +11,7 @@ import {
 } from '../utils/formulaParser';
 import {
   AUTO, autoForWiring, explicitModifiers, fromFieldText, moveModifier, partsForTool, toFieldText,
-  wiringChanged, withEntry,
+  wiringChanged, withChosenVerb, withEntry,
 } from '../utils/formulaParts';
 import { effectiveSettings, pyLiteral } from '../utils/resources';
 import './ToolEditor.css';
@@ -20,7 +20,7 @@ import './ToolEditor.css';
  * The step's formula as a form, inside the Formula widget:
  *
  *   TOOL: [scale ▾]                       one thin bar
- *   ▾ INPUTS     readings, weight=3       what the tool is given
+ *   ▾ INPUTS                              what the tool is given
  *   ▾ MODIFIERS  map · auto               how it is applied, in formula order
  *
  * The formula is the only state. The editor shows *formula* (the last one
@@ -75,8 +75,8 @@ export default function ToolEditor({
   const [notATool, setNotATool] = useState(false);
   const [warning, setWarning] = useState<string | null>(null);
   const [catalog, setCatalog] = useState<Record<string, ModifierInfo>>({});
-  /** What `auto` (or a bracket-less formula) resolves to right now, and why. */
-  const [resolved, setResolved] = useState<Resolved | null>(null);
+  /** What `auto` (or a bracket-less formula) resolved to, and for which tool and wiring. */
+  const [answer, setAnswer] = useState<{ key: string; resolved: Resolved } | null>(null);
 
   useEffect(() => { getModifiers().then(setCatalog).catch(() => setCatalog({})); }, []);
   const isShape = (kind: string) => catalog[kind]?.class !== 'execution';
@@ -107,11 +107,16 @@ export default function ToolEditor({
   useEffect(() => {
     let cancelled = false;
     (inferring ? inferVerb(parts!, inputRef ?? undefined, resources) : Promise.resolve(null))
-      .then((r) => { if (!cancelled) setResolved(r ? { kind: r.verb, why: r.why, usedData: r.used_data } : null); })
-      .catch(() => { if (!cancelled) setResolved(null); });
+      .then((r) => {
+        if (!cancelled) setAnswer(r ? { key: previewKey, resolved: { kind: r.verb, why: r.why, usedData: r.used_data } } : null);
+      })
+      .catch(() => { if (!cancelled) setAnswer(null); });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- previewKey is the dependency
   }, [previewKey]);
+  // Only an answer for this tool and wiring: right after a switch, the last
+  // tool's verb would be wrong (REQ-FORM-005).
+  const resolved = answer && answer.key === previewKey ? answer.resolved : null;
 
   // Edits arrive faster than the server answers; only the latest one counts.
   const writeSeq = useRef(0);
@@ -189,13 +194,13 @@ export default function ToolEditor({
 
       {parts && !isCombine && (
         <>
-          <Bar title="Inputs" summary={inputsSummary(parts)} defaultOpen>
+          <Bar title="Inputs" defaultOpen>
             <InputUi parts={parts} op={op} previousSteps={previousSteps} resources={resources}
               onWrite={write} onDefineResource={onDefineResource} />
           </Bar>
 
           <Bar title="Modifiers" summary={modifiersSummary(parts, resolved)} defaultOpen>
-            <ModifierList parts={parts} catalog={catalog} resolved={resolved} isShape={isShape}
+            <ModifierList parts={parts} catalog={catalog} resolved={resolved}
               onWrite={write} />
           </Bar>
         </>
@@ -239,7 +244,6 @@ function DefaultInputUi({ parts, op, previousSteps, resources, onWrite, onDefine
         {[...stepOptions, ...resourceOptions].map((o) => <option key={o.value} value={o.value} label={o.label} />)}
       </datalist>
 
-      <div className="te-group-label">Positional</div>
       <ArgRow
         name="input"
         hint="The step this one reads"
@@ -268,7 +272,6 @@ function DefaultInputUi({ parts, op, previousSteps, resources, onWrite, onDefine
         />
       ))}
 
-      {(declared.length > 0 || extra.length > 0) && <div className="te-group-label">Keyword</div>}
       {declared.map((p) => (
         <ArgRow
           key={p.name}
@@ -415,29 +418,29 @@ function ResourceArg({ name, decl, onDefine }: {
 
 // ── Modifiers ────────────────────────────────────────────────────────────────
 
-function ModifierList({ parts, catalog, resolved, isShape, onWrite }: {
+function ModifierList({ parts, catalog, resolved, onWrite }: {
   parts: FormulaParts;
   catalog: Record<string, ModifierInfo>;
   resolved: Resolved | null;
-  isShape: (kind: string) => boolean;
   onWrite: (p: FormulaParts) => void;
 }) {
   const mods = parts.modifiers ?? [];
   const setMods = (next: typeof mods) => onWrite({ ...parts, modifiers: next.length ? next : null });
-  // Any change to the modifiers makes them explicit: auto becomes its verb.
-  const explicit = (list: typeof mods) => explicitModifiers(list, resolved?.kind ?? 'map');
+  // Any change to the modifiers makes them explicit: auto becomes its verb,
+  // once core has said which (REQ-FORM-005).
+  const explicit = (list: typeof mods) => explicitModifiers(list, resolved?.kind ?? null);
 
   const add = (kind: string) => {
     if (!kind) return;
-    if (kind !== AUTO && isShape(kind)) {
-      // A verb you choose replaces auto.
-      setMods([...mods.filter((m) => m.kind !== AUTO), { kind, params: {} }]);
+    if (catalog[kind]?.class !== 'execution') {
+      // One shape verb per step: the one chosen replaces it (REQ-FORM-003),
+      // and brings its own tool if it applies none (REQ-FORM-004).
+      onWrite(withChosenVerb(parts, kind, catalog));
       return;
     }
     // Brackets need a shape verb: retry/timeout on a bare step writes down
-    // the verb core would pick.
-    const base = parts.modifiers ?? (kind === AUTO ? [] : [{ kind: resolved?.kind ?? 'map', params: {} }]);
-    setMods([...(kind === AUTO ? base : explicit(base)), { kind, params: {} }]);
+    // the verb core would pick, or auto until it has said.
+    setMods([...explicit(parts.modifiers ?? [{ kind: AUTO, params: {} }]), { kind, params: {} }]);
   };
 
   return (
@@ -574,16 +577,6 @@ function groupByCategory(ops: OperationDefinition[]): [string, OperationDefiniti
     groups.set(c, [...(groups.get(c) ?? []), o]);
   }
   return [...groups.entries()];
-}
-
-/** `readings, weight=3` — the call's arguments as the formula writes them. */
-function inputsSummary(parts: FormulaParts): string {
-  const items = [
-    ...(parts.input ? [parts.input] : []),
-    ...parts.resources.map((r) => `res["${r}"]`),
-    ...Object.entries(parts.arguments).map(([k, v]) => `${k}=${toFieldText(v)}`),
-  ];
-  return items.length ? items.join(', ') : 'none';
 }
 
 function modifiersSummary(parts: FormulaParts, resolved: Resolved | null): string {
