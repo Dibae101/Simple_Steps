@@ -24,7 +24,7 @@ import urllib.request
 
 from SIMPLE_STEPS import simple_step_resource, simple_step_tool
 
-from tools import LLM
+from llm_tools import LLM
 
 #: The model and server app.py uses, unless the environment says otherwise.
 DEFAULT_MODEL = os.environ.get("OLLAMA_MODEL", "llama3.2:3b")

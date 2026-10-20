@@ -104,6 +104,7 @@ time.
 - Changes requested of core: `docs/core-proposals/`
 - What was removed and what is staged for removal: `docs/cleanup-map.md`
 - Architecture as built: `docs/dev_plan/` (its README marks it active)
+- The shipped examples, and how they check themselves: `src/SIMPLE_STEPS/examples/README.md`
 
 ## Commands
 - Python: **3.13** (pinned in `.python-version`; `requires-python` still says
@@ -123,6 +124,7 @@ time.
 - Rebuild the shipped bundle: `python -m SIMPLE_STEPS.build_frontend`
 - Preflight: `python scripts/preflight.py [--fix]`
 - Full install test: `python scripts/smoke_install.py`
+- Run and check every example: `python src/SIMPLE_STEPS/examples/runme.py`
 - Run guardrails: `PHASE=impl ./scripts/verify_phase.sh`
 - Guardrails with temporary overrides: `python ./scripts/guardrails.py --phase impl --allow "README.md,pyproject.toml"`
 

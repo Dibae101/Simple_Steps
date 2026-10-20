@@ -32,6 +32,8 @@ reply:
 - The app's own probes (one per shim, through `/api/run`, `/api/operations`,
   `/api/infer_verb`, `/api/format_formula`), and
   `examples/all_orchestrations/check.py` → 63/63 steps match core's run.
+  (Since replaced by the examples' `runme.py` scripts, which check the same
+  workflows against Python twins: `python src/SIMPLE_STEPS/examples/runme.py`.)
 
 **Shims deleted from `core_bridge.py`**, each replaced by core's function:
 

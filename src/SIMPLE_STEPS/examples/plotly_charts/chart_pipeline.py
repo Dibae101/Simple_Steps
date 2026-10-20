@@ -1,0 +1,43 @@
+"""
+chart_pipeline.py — the Plotly example's workflows, written in Python.
+
+Each saved workflow in ``workspace/projects/plotly_charts/`` has a twin here:
+one Python line per saved step, in simple-steps-core's syntax. ``runme.py``
+runs both and checks every step's output is the same — figures, images and
+tables in cells compared by content.
+
+Import this after the app (``runme.py`` does): the tools come from it.
+"""
+
+from __future__ import annotations
+
+from simple_steps_core import grid
+from simple_steps_core.grid import mod
+
+from SIMPLE_STEPS.example_check import tool_handles
+
+(to_rows, above_one, swatch, brightness, profile, city_chart, bar_chart) = tool_handles(
+    "to_rows", "above_one", "swatch", "brightness", "profile", "city_chart", "bar_chart",
+)
+
+
+def build_rich_cells() -> grid.Workflow:
+    """``rich-cells``: an image, a table and a Plotly figure in cells. A later
+    step reads the real object: ``brightness`` gets the image array."""
+    wf = grid.Workflow()
+    wf["readings"] = to_rows[mod.source()](data='{"city": ["SF", "NYC", "SF", "LA"], "n": [1, 2, 3, 2]}')
+    wf["swatches"] = swatch[mod.map(name="swatch")](wf["readings"])
+    wf["bright"] = brightness[mod.map(name="brightness")](wf["swatches"])
+    wf["profiles"] = profile[mod.map(name="profile")](wf["readings"])
+    wf["chart"] = city_chart[mod.source()](cities=["SF", "NYC", "LA"], counts=[2, 1, 1])
+    return wf
+
+
+def build_table_filter_chart() -> grid.Workflow:
+    """``table-filter-chart``: load a table, keep the rows with n > 1, chart
+    them — one figure from a whole table, by a reducer under collapse."""
+    wf = grid.Workflow()
+    wf["readings"] = to_rows[mod.source()](data='{"city": ["SF", "NYC", "LA", "Austin", "Boston", "Denver"], "n": [1, 4, 2, 5, 1, 3]}')
+    wf["big"] = above_one[mod.filter()](wf["readings"])
+    wf["chart"] = bar_chart[mod.collapse()](wf["big"])
+    return wf

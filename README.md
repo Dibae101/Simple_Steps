@@ -59,16 +59,23 @@ If `simple-steps-core` is older than `1c30e03`, you will see
 `ImportError: cannot import name 'ResourceSpec'` — that is the symptom of a
 stale install, and the force-reinstall above is the fix.
 
-### Running the example
+### Running the examples
 
-The examples ship with the package. Copy them out and run one, the way you'd
-run a Streamlit app:
+The examples ship with the package: three small ones — `basic/` (core verbs
+and data manipulation), `dummy_llm/` (resources) and `plotly_charts/` — and a
+main example that uses all three. Copy them out and run one, the way you'd run
+a Streamlit app:
 
 ```bash
 pip install "simple-steps @ git+https://github.com/stusynakowski/Simple_Steps.git"
-simple-steps --load-examples                          # copies them to ./examples
-simple-steps run examples/all_orchestrations/app.py   # serves that app, opens the browser
+simple-steps --load-examples              # copies them to ./examples
+simple-steps run examples/app.py          # the main example; or examples/basic/app.py, …
+python examples/runme.py                  # run every example's workflows and check each step
 ```
+
+Each example has saved workflows in its `workspace/`, the same workflows
+written in Python, and a `runme.py` that runs both and checks they agree. See
+[`src/SIMPLE_STEPS/examples/README.md`](src/SIMPLE_STEPS/examples/README.md).
 
 `simple-steps run <file>` serves the `App` the file builds, with the file's
 folder as the workspace: `--port`, `--host` and `--no-browser` win over any
@@ -533,7 +540,9 @@ Simple_Steps/
 ├── src/
 │   └── SIMPLE_STEPS/              # The pip-installable package
 │       ├── cli.py                 # `simple-steps` entry point: run, --load-examples
-│       ├── examples/              # Shipped examples; `simple-steps --load-examples` copies them
+│       ├── examples/              # Shipped examples (basic, dummy_llm, plotly_charts, main);
+│       │                          #   `simple-steps --load-examples` copies them
+│       ├── example_check.py       # What the examples' runme.py scripts run and check with
 │       ├── cli_dev.py             # `simple-steps-dev` — backend + Vite together
 │       ├── cli_local.py           # `simple-steps-local` desktop mode (pywebview)
 │       ├── build_frontend.py      # Bundle builder (python -m SIMPLE_STEPS.build_frontend)

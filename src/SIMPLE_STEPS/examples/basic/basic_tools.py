@@ -1,23 +1,21 @@
 """
-tools.py — a sample tool registry for Simple Steps.
+basic_tools.py — the basic example's tools: the core verbs, and data manipulation.
 
-This is the file a developer writes. Everything a user can do in the UI comes
-from the functions registered here. Copy this file, replace the tools with your
-own, and run it.
+Two sets, both plain functions with a decorator:
 
-    pip install simple-steps
-    python tools.py
+- **Core verbs** — the nine tools of simple-steps-core's own
+  ``all_orchestrations`` example, with the same bodies and annotations, because
+  core infers a step's verb from them (``-> bool`` filters, ``-> list``
+  expands, ``(acc, n)`` collapses). ``all-orchestrations`` runs every shape
+  verb over them.
+- **Data manipulation** — sources, per-row text and analysis tools, whole-table
+  tools, and diagnostics (slow, sometimes failing). ``table-tools`` runs them.
 
-Each tool is a plain Python function with a decorator. The decorator declares
-how the engine should apply it:
+Copy this file to start your own: everything a user can do in the UI comes
+from functions like these.
 
-    operation_type="source"     no upstream input — produces a table
-    operation_type="map"        runs once per cell of an upstream column
-    operation_type="dataframe"  runs once on the whole upstream table
-
-The tools below are deliberately boring and dependency-free so they are easy
-to reason about when something breaks. They cover every orchestration mode,
-several argument shapes, slow/failing/empty cases, and non-tabular payloads.
+    simple-steps run examples/basic/app.py     # this example alone, in the UI
+    python examples/basic/runme.py             # run its workflows and check them
 """
 
 from __future__ import annotations
@@ -30,6 +28,105 @@ from typing import Literal
 import pandas as pd
 
 from SIMPLE_STEPS import simple_step_tool
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# Core verbs — one tool per shape the grid can give a step.
+# ──────────────────────────────────────────────────────────────────────────
+
+@simple_step_tool(category="Basic: core verbs")
+def scale(n, weight=1):
+    """map: a value per row — the score.
+
+    Args:
+        n: the reading.
+        weight: multiplies the score.
+    """
+    return n * 10 * weight
+
+
+@simple_step_tool(category="Basic: core verbs")
+def is_big(n) -> bool:
+    """filter: a predicate — keep rows whose n is greater than one.
+
+    Args:
+        n: the reading.
+    """
+    return n > 1
+
+
+@simple_step_tool(category="Basic: core verbs")
+def label_city(city):
+    """group: a key function — the bucket a row belongs to.
+
+    Args:
+        city: the row's city.
+    """
+    return city
+
+
+@simple_step_tool(category="Basic: core verbs")
+def add_n(acc, n):
+    """collapse: a two-argument reducer — running sum of n.
+
+    Args:
+        acc: the running total.
+        n: the reading to add.
+    """
+    return (acc or 0) + n
+
+
+@simple_step_tool(category="Basic: core verbs")
+def fan_out(n) -> list:
+    """expand: each row yields a list — n copies of n.
+
+    Args:
+        n: how many copies, and their value.
+    """
+    return [n] * n
+
+
+@simple_step_tool(category="Basic: core verbs")
+def make_coords(n):
+    """expand -> widen: each row yields a list of records to be spread wide.
+
+    Args:
+        n: the reading.
+    """
+    return [{"axis": "x", "val": n}, {"axis": "y", "val": n * 2}]
+
+
+@simple_step_tool(category="Basic: core verbs")
+def grid_cell(model, window):
+    """sweep: run over the cross product of named parameter lists.
+
+    Args:
+        model: the model name.
+        window: the window length.
+    """
+    return f"{model}:{window}"
+
+
+@simple_step_tool(category="Basic: core verbs")
+def risky(n):
+    """failure: raises on a specific value so some rows fail and some pass.
+
+    Args:
+        n: the reading; 2 raises.
+    """
+    if n == 2:
+        raise ValueError("twos are not allowed")
+    return n * 100
+
+
+@simple_step_tool(category="Basic: core verbs")
+def make_pair(n):
+    """tuple return — widen auto-names the positions c0, c1.
+
+    Args:
+        n: the reading.
+    """
+    return (n * 10, n * n)
 
 
 # ──────────────────────────────────────────────────────────────────────────
@@ -86,12 +183,13 @@ def sample_people(count: int = 8, seed: int = 0) -> pd.DataFrame:
     id="split_text",
 )
 def split_text(text: str = "alpha,beta,gamma", separator: str = ",") -> pd.DataFrame:
-    """Split a string into one row per piece.
+    """Split a string into one row per piece, in a ``text`` column — the
+    name the text tools (``word_count``, ``to_upper``) read.
 
-        =split_text(text="a;b;c", separator=";")
+        split_text[mod.source()](text="a;b;c", separator=";")
     """
     parts = [p.strip() for p in text.split(separator) if p.strip()]
-    return pd.DataFrame({"part": parts})
+    return pd.DataFrame({"text": parts})
 
 
 @simple_step_tool(
@@ -288,12 +386,12 @@ def top_n(df: pd.DataFrame, column: str = "", n: int = 5,
 
 
 @simple_step_tool(
-    name="Summarize",
+    name="Describe Table",
     category="Table",
     operation_type="dataframe",
-    id="summarize",
+    id="describe_table",
 )
-def summarize(df: pd.DataFrame) -> pd.DataFrame:
+def describe_table(df: pd.DataFrame) -> pd.DataFrame:
     """One row per column: type, non-null count, and basic numeric stats.
 
     Handy as a last step to see what a workflow actually produced.
@@ -371,11 +469,3 @@ def make_series(n: int, length: int = 4) -> list:
     """Turn one cell into a list, so a later Expand has something to unpack."""
     base = int(n)
     return [base + i for i in range(int(length))]
-
-
-if __name__ == "__main__":
-    # Registering the tools above is the only thing this file has to do.
-    # Launch the app the same way you would with any tools file.
-    from SIMPLE_STEPS.cli import main
-
-    main()
