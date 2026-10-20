@@ -16,10 +16,10 @@ from pathlib import Path
 
 from SIMPLE_STEPS import App
 
-from bad_examples import bad_tools
-from basic import basic_tools
-from dummy_llm import llm_tools
-from plotly_charts import chart_tools
+from .bad_examples import bad_tools
+from .basic import basic_tools
+from .dummy_llm import llm_tools
+from .plotly_charts import chart_tools
 
 app = App(
     tools=[basic_tools, llm_tools, chart_tools, bad_tools],
