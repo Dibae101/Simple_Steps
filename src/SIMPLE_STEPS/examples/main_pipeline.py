@@ -15,7 +15,10 @@ from simple_steps_core.grid import mod, res
 
 from SIMPLE_STEPS.example_check import tool_handles
 
-from llm_tools import FakeDB, FakeLLM
+# The resource types the app registered (dummy_llm's), by name. Importing
+# llm_tools directly works only once app.py has put dummy_llm/ on the import
+# path, which an editor can't see.
+FakeDB, FakeLLM = grid.resource_types()["FakeDB"], grid.resource_types()["FakeLLM"]
 
 to_rows, identity = tool_handles("to_rows", "identity")
 scale, is_big, add_n = tool_handles("scale", "is_big", "add_n")          # basic

@@ -109,3 +109,16 @@ SIMPLE_STEPS = ["examples/**/__pycache__/*", "examples/**/*.pyc", "examples/**/.
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+
+[tool.pyright]
+# The examples import each other's modules by name (`import basic_tools`):
+# their app.py files put those folders on sys.path at run time, which an
+# editor can't see. Listing them here lets Pylance resolve the imports.
+# typeCheckingMode stays Pylance's default.
+extraPaths = [
+    "src/SIMPLE_STEPS/examples/basic",
+    "src/SIMPLE_STEPS/examples/dummy_llm",
+    "src/SIMPLE_STEPS/examples/plotly_charts",
+    "src/SIMPLE_STEPS/examples/bad_examples",
+]
+typeCheckingMode = "off"
