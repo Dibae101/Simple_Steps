@@ -70,3 +70,14 @@ The following table maps requirements from `docs/spec/000-overview.md` to specif
 |:---|:---|:---|:---|
 | **REQ-TOOL-001** | A tool is core's handle; brackets build a core step, unregistered | `TEST-TOOL-01` | `tests/test_tool_handle.py` |
 | **REQ-TOOL-002** | Every other call behaves as before | `TEST-TOOL-02` | `tests/test_tool_handle.py` |
+
+### Switching Group ([spec 012](../spec/012-switching-tools-and-verbs.md))
+| ID | Requirement | Test | File |
+|:---|:---|:---|:---|
+| **REQ-FORM-001** | One shape verb per step, refused when written | `TEST-FORM-01` | `tests/test_formula_switching.py` |
+| **REQ-FORM-002** | A verb that applies no tool keeps its default tool | `TEST-FORM-02` | `tests/test_formula_switching.py` |
+| **REQ-FORM-003** | Choosing a shape verb replaces the step's verb | `TEST-FORM-03`, `TEST-FORM-03a–c` | `tests/test_formula_switching.py`, `frontend/src/utils/formulaParts.test.ts`, `frontend/src/components/ToolEditor.switching.test.tsx` |
+| **REQ-FORM-004** | A no-tool verb brings its default tool | `TEST-FORM-03`, `TEST-FORM-04`, `TEST-FORM-04b–c` | same three files |
+| **REQ-FORM-005** | `auto` is made explicit only with the current tool's verb | `TEST-FORM-05a–b` | `frontend/src/utils/formulaParts.test.ts`, `frontend/src/components/ToolEditor.switching.test.tsx` |
+| **REQ-FORM-006** | Every tool, switched to and run, runs or says why | `TEST-FORM-06`, `TEST-FORM-06b` | `tests/test_formula_switching.py` (+ `tests/fixtures/switch_sweep.py`), `frontend/src/components/ToolEditor.switching.test.tsx` |
+| **REQ-FORM-007** | Example formulas round-trip through the editor's parts | `TEST-FORM-07` | `tests/test_formula_switching.py` |

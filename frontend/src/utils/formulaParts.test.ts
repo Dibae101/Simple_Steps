@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { autoForWiring, explicitModifiers, fromFieldText, moveModifier, partsForTool, toFieldText, wiringChanged, withEntry, withShapeVerb } from './formulaParts';
+import {
+  autoForWiring, explicitModifiers, fromFieldText, moveModifier, partsForTool, toFieldText, wiringChanged,
+  withChosenVerb, withEntry, withShapeVerb, type VerbInfo,
+} from './formulaParts';
 
 describe('step editor field values', () => {
   it('round-trips references, resources and literals through field text', () => {
@@ -94,5 +97,55 @@ describe('choosing a tool', () => {
   });
   it('makes a source read nothing', () => {
     expect(partsForTool('to_rows', 'source', 'readings')).toMatchObject({ modifiers: [{ kind: 'source' }], input: null });
+  });
+});
+
+/**
+ * Spec 012: switching a step's verb writes a step that runs. The catalog
+ * entries mirror core's grid.modifier_catalog() (takes_tool / default_tool).
+ */
+describe('choosing a verb (REQ-FORM-003, REQ-FORM-004)', () => {
+  const catalog: Record<string, VerbInfo> = {
+    map: { class: 'shape', takes_tool: true, default_tool: null },
+    filter: { class: 'shape', takes_tool: true, default_tool: null },
+    auto: { class: 'shape', takes_tool: true, default_tool: null },
+    collapse: { class: 'shape', takes_tool: 'optional', default_tool: 'gather' },
+    select: { class: 'shape', takes_tool: false, default_tool: 'identity' },
+    sort: { class: 'shape', takes_tool: false, default_tool: 'identity' },
+    retry: { class: 'execution', takes_tool: null, default_tool: null },
+  };
+  const scale = { ...partsForTool('scale', 'map', 'readings'), arguments: { weight: 2 } };
+  const kinds = (p: { modifiers: { kind: string }[] | null }) => p.modifiers?.map((m) => m.kind);
+
+  it('TEST-FORM-03a: replaces the shape verb instead of adding a second one', () => {
+    const mapped = { ...scale, modifiers: [{ kind: 'map', params: { name: 'x' } }, { kind: 'retry', params: { times: 2 } }] };
+    expect(kinds(withChosenVerb(mapped, 'filter', catalog))).toEqual(['filter', 'retry']);
+    expect(kinds(withChosenVerb({ ...scale, modifiers: [{ kind: 'auto', params: {} }] }, 'filter', catalog))).toEqual(['filter']);
+    expect(kinds(withChosenVerb(mapped, 'auto', catalog))).toEqual(['auto', 'retry']);
+    expect(kinds(withChosenVerb(scale, 'map', catalog))).toEqual(['map']);       // bare step
+  });
+
+  it('TEST-FORM-03b: keeps the tool and its arguments for a verb that applies one', () => {
+    expect(withChosenVerb(scale, 'filter', catalog)).toMatchObject({ tool: 'scale', arguments: { weight: 2 }, input: 'readings' });
+    expect(withChosenVerb(scale, 'collapse', catalog).tool).toBe('scale');     // optional: kept
+  });
+
+  it('TEST-FORM-04: a verb that applies no tool brings its default tool', () => {
+    const next = withChosenVerb({ ...scale, resources: ['llm'] }, 'select', catalog);
+    expect(next).toMatchObject({ tool: 'identity', arguments: {}, resources: [], bound_to: null, input: 'readings' });
+    expect(kinds(next)).toEqual(['select']);
+    expect(withChosenVerb({ ...scale, bound_to: 'db' }, 'sort', catalog)).toMatchObject({ tool: 'identity', bound_to: null });
+  });
+
+  it('TEST-FORM-04b: switching back to a tool after select reads the same step, auto again', () => {
+    const selected = withChosenVerb(scale, 'select', catalog);
+    expect(partsForTool('scale', 'map', selected.input)).toMatchObject({ tool: 'scale', input: 'readings', modifiers: null });
+  });
+});
+
+describe('auto before core has answered (REQ-FORM-005)', () => {
+  it('TEST-FORM-05a: is kept, not guessed, when the verb is not known yet', () => {
+    const mods = [{ kind: 'auto', params: {} }, { kind: 'retry', params: { times: 2 } }];
+    expect(explicitModifiers(mods, null)).toBe(mods);
   });
 });

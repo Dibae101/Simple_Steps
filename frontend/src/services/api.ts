@@ -203,6 +203,10 @@ export interface ModifierInfo {
   class: 'shape' | 'execution';
   row_rule: string | null;
   settings: ModifierSetting[];
+  /** `false` for a verb that applies no tool (select, sort, …); `null` for an execution modifier. */
+  takes_tool?: boolean | 'optional' | null;
+  /** The tool a verb runs on when none is named (`identity`, `gather`). */
+  default_tool?: string | null;
 }
 
 let modifiersCache: Promise<Record<string, ModifierInfo>> | null = null;
