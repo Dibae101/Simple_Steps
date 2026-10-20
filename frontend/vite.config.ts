@@ -29,6 +29,8 @@ export default defineConfig({
     chunkSizeWarningLimit: 1200,
   },
   server: {
+    // The User Docs panel bundles ../docs/usage_docs (DocsPanel.tsx).
+    fs: { allow: ['..'] },
     proxy: {
       '/api': {
         target: 'http://127.0.0.1:8000',

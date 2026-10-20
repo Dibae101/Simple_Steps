@@ -1,0 +1,106 @@
+/**
+ * DocsPanel — the sidebar's User Docs (spec 013, REQ-ENV-007).
+ *
+ * Every page of docs/usage_docs/, built into the bundle at build time, so the
+ * installed app needs no docs on disk and the panel can never list a page
+ * that no longer exists. The README comes first, as "Start here"; each page
+ * is titled by its first heading. A link to another page opens it here.
+ *
+ * Tables are drawn here rather than by a Markdown plugin (react-markdown
+ * alone doesn't do GitHub tables, and the docs use them for reference);
+ * utils/docs.ts finds them.
+ */
+
+import React, { useMemo, useRef, useState } from 'react';
+import Markdown, { type Components } from 'react-markdown';
+import Icon from './Icon';
+import { docPages, splitTables, type DocPage } from '../utils/docs';
+
+export default function DocsPanel({ pages = docPages() }: { pages?: DocPage[] }) {
+  const [active, setActive] = useState<DocPage | null>(null);
+  const reader = useRef<HTMLDivElement>(null);
+  const byFile = useMemo(() => new Map(pages.map((p) => [p.file, p])), [pages]);
+
+  const open = (page: DocPage, anchor?: string) => {
+    setActive(page);
+    // After the page renders: jump to the anchor, or to the top.
+    requestAnimationFrame(() => {
+      const target = anchor ? reader.current?.querySelector(`#${CSS.escape(anchor)}`) : null;
+      if (target) target.scrollIntoView();
+      else reader.current?.scrollTo?.(0, 0);
+    });
+  };
+
+  // Links between the docs open here; outside links open a tab; links into the
+  // repository (../../src/…) aren't in the installed app, so they stay text.
+  const components: Components = {
+    a: ({ href = '', children }) => {
+      if (/^https?:/.test(href)) return <a href={href} target="_blank" rel="noreferrer">{children}</a>;
+      const [file, anchor] = href.split('#');
+      const page = byFile.get(file.replace(/^\.\//, ''));
+      if (page) {
+        return (
+          <a href={`#${anchor ?? ''}`} onClick={(e) => { e.preventDefault(); open(page, anchor); }}>{children}</a>
+        );
+      }
+      if (!file && anchor) {
+        return <a href={`#${anchor}`} onClick={(e) => { e.preventDefault(); open(active!, anchor); }}>{children}</a>;
+      }
+      return <span className="docs-repo-link" title={`${href} — in the Simple Steps repository`}>{children}</span>;
+    },
+    // Headings get ids so #anchors work: "## Verb, shape" → "verb-shape".
+    h2: ({ children }) => <h2 id={slug(children)}>{children}</h2>,
+    h3: ({ children }) => <h3 id={slug(children)}>{children}</h3>,
+  };
+
+  if (active) {
+    return (
+      <div className="project-explorer docs-panel">
+        <div className="docs-reader-bar">
+          <button type="button" className="docs-back" onClick={() => setActive(null)} title="Back to the docs list">
+            <Icon name="arrow-left" size={14} /> All docs
+          </button>
+        </div>
+        <div className="docs-reader" ref={reader} data-testid="docs-reader">
+          {splitTables(active.content).map((block, i) => (block.kind === 'md'
+            ? <Markdown key={i} components={components}>{block.text}</Markdown>
+            : (
+              <div key={i} className="docs-table-wrap">
+                <table className="docs-table">
+                  <thead><tr>{block.header.map((h, j) => <th key={j}><Markdown components={components}>{h}</Markdown></th>)}</tr></thead>
+                  <tbody>
+                    {block.rows.map((row, r) => (
+                      <tr key={r}>{row.map((c, j) => <td key={j}><Markdown components={components}>{c}</Markdown></td>)}</tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )))}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="project-explorer docs-panel">
+      <div className="docs-list">
+        {pages.length === 0 && <div className="docs-empty">No docs were bundled with this build.</div>}
+        {pages.map((page) => (
+          <button type="button" key={page.file} className="docs-link-row" onClick={() => open(page)} title={page.summary}>
+            <Icon name="book" size={14} className="docs-link-icon" />
+            <span className="docs-link-text">
+              <span className="docs-link-title">{page.file === 'README.md' ? `Start here — ${page.title}` : page.title}</span>
+              {page.summary && <span className="docs-link-summary">{page.summary}</span>}
+            </span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** A heading's text as an anchor id, the way GitHub writes them. */
+function slug(children: React.ReactNode): string {
+  const text = React.Children.toArray(children).map((c) => (typeof c === 'string' ? c : '')).join('');
+  return text.toLowerCase().trim().replace(/[^\w\s-]/g, '').replace(/\s+/g, '-');
+}

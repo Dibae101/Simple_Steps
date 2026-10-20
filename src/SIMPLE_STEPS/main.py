@@ -577,6 +577,16 @@ async def list_resource_types():
     return {name: grid.resource_entry(cls) for name, cls in sorted(RESOURCE_TYPES.items())}
 
 
+@app.get("/api/environment")
+async def get_environment():
+    """Everything a workflow in this app can use — its tools (the app's and
+    core's built-ins) with typed parameters and return types, its resource
+    types and its ready-made resources — for the Environment explorer
+    (spec 013). Built from core's catalog; see :mod:`.environment`."""
+    from .environment import describe_environment
+    return describe_environment()
+
+
 @app.get("/api/resources/loaded")
 async def list_loaded_resources():
     """The ready-made resources this deployment provides: each one's type, its

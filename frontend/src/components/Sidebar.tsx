@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import Markdown from 'react-markdown';
 import type { ActivityView } from './ActivityBar';
-import type { ProjectInfo, PipelineFile, SimpleStepsSettings, OperationDefinition } from '../services/api';
-import { readWorkspaceFile, fetchSettings, updateSettings } from '../services/api';
+import type { ProjectInfo, PipelineFile, SimpleStepsSettings, OperationDefinition, ResourceDeclaration } from '../services/api';
+import { fetchSettings, updateSettings } from '../services/api';
 import FileTree from './FileTree';
-import SessionManager from './SessionManager';
+import EnvironmentExplorer from './EnvironmentExplorer';
+import DocsPanel from './DocsPanel';
 import './Sidebar.css';
 
 interface SidebarProps {
@@ -12,8 +12,10 @@ interface SidebarProps {
   currentView: ActivityView;
   /** Increment to force the explorer to re-fetch projects/pipelines after a save */
   refreshTrigger?: number;
-  /** Registered operations — shown in the Session Manager's tool registry. */
+  /** Registered operations. */
   availableOperations?: OperationDefinition[];
+  /** This workflow's resources — listed in the Environment panel. */
+  workflowResources?: Record<string, ResourceDeclaration>;
   // Project / pipeline persistence
   onListProjects?: () => Promise<ProjectInfo[]>;
   onCreateProject?: (name: string) => Promise<ProjectInfo>;
@@ -24,203 +26,6 @@ interface SidebarProps {
   onRequestSave?: (projectId: string, projectDisplayName: string) => void;
   onDeletePipeline?: (projectId: string, pipelineId: string) => Promise<void>;
 }
-
-// ── Icons ──────────────────────────────────────────────────────────────────
-
-const ChevronIcon = ({ collapsed }: { collapsed: boolean }) => (
-  <span className={`chevron ${collapsed ? 'collapsed' : ''}`}>▼</span>
-);
-// ── User Docs Panel ────────────────────────────────────────────────────────
-
-interface DocEntry {
-  title: string;
-  description: string;
-  url: string;
-}
-
-const docSections: { category: string; docs: DocEntry[] }[] = [
-  {
-    category: 'Getting Started',
-    docs: [
-      {
-        title: 'Getting Started',
-        description: 'What the UI looks like, core concepts (steps, formulas, operations), and your first workflow.',
-        url: '/usage_docs/getting-started.md',
-      },
-      {
-        title: 'Projects & Saving',
-        description: 'How projects and pipelines are organized, saving/loading workflows, and the file explorer.',
-        url: '/usage_docs/projects-and-saving.md',
-      },
-    ],
-  },
-  {
-    category: 'Using the App',
-    docs: [
-      {
-        title: 'The Formula Bar',
-        description: 'Formula syntax, step references (step1.url), eval mode, and how formulas get executed.',
-        url: '/usage_docs/formula-bar.md',
-      },
-      {
-        title: 'Operations & the Sidebar',
-        description: 'Where operations come from (tiers 1-3), operation types, orchestration ops, and creating your own.',
-        url: '/usage_docs/operations.md',
-      },
-      {
-        title: 'Steps as Python Variables',
-        description: 'StepProxy, ColumnProxy, auto-broadcasting — how steps work like Python objects.',
-        url: '/usage_docs/step-variables.md',
-      },
-      {
-        title: 'Helper Functions',
-        description: 'map_each, apply_to, filter_by, expand_each, val, col — use any function with step broadcasting.',
-        url: '/usage_docs/helpers.md',
-      },
-    ],
-  },
-  {
-    category: 'Configuration',
-    docs: [
-      {
-        title: 'Settings & Configuration',
-        description: 'Eval mode, simple_steps.toml manifest, environment variables, and launch options.',
-        url: '/usage_docs/settings.md',
-      },
-    ],
-  },
-  {
-    category: 'Developer Guides',
-    docs: [
-      {
-        title: 'Adding Operations',
-        description: 'Create and register operations using @simple_step or register_operation.',
-        url: '/usage_docs/developers/adding-operations.md',
-      },
-      {
-        title: 'Desktop Mode',
-        description: 'Run Simple Steps as a native desktop window with pywebview — no browser needed.',
-        url: '/usage_docs/developers/desktop-mode.md',
-      },
-    ],
-  },
-];
-
-const BookIcon = () => (
-  <svg className="file-icon" width="13" height="13" viewBox="0 0 24 24" fill="none"
-    stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
-    <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
-  </svg>
-);
-
-const DocsPanel: React.FC = () => {
-  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(
-    () => new Set(docSections.map(s => s.category))
-  );
-  const [activeDoc, setActiveDoc] = useState<DocEntry | null>(null);
-  const [docContent, setDocContent] = useState<string | null>(null);
-  const [docLoading, setDocLoading] = useState(false);
-
-  const toggleCategory = (cat: string) => {
-    setExpandedCategories(prev => {
-      const next = new Set(prev);
-      if (next.has(cat)) next.delete(cat); else next.add(cat);
-      return next;
-    });
-  };
-
-  const openDoc = async (doc: DocEntry) => {
-    if (activeDoc?.url === doc.url) {
-      // Toggle off
-      setActiveDoc(null);
-      setDocContent(null);
-      return;
-    }
-    setActiveDoc(doc);
-    setDocLoading(true);
-    try {
-      // url is like "/usage_docs/getting-started.md" — strip leading slash for the API
-      const path = doc.url.startsWith('/') ? doc.url.slice(1) : doc.url;
-      const result = await readWorkspaceFile(path);
-      setDocContent(result.content ?? 'File too large to display.');
-    } catch {
-      setDocContent('Could not load document.');
-    } finally {
-      setDocLoading(false);
-    }
-  };
-
-  // If a doc is open, show the reader view
-  if (activeDoc && docContent !== null) {
-    return (
-      <div className="project-explorer" style={{ overflowY: 'auto', height: '100%' }}>
-        <div style={{ padding: '8px 12px', borderBottom: '1px solid #2a2a2a', display: 'flex', alignItems: 'center', gap: 8 }}>
-          <button
-            onClick={() => { setActiveDoc(null); setDocContent(null); }}
-            style={{
-              background: 'none', border: 'none', color: '#ccc', cursor: 'pointer',
-              fontSize: '0.9rem', padding: '2px 6px',
-            }}
-            title="Back to docs list"
-          >← Back</button>
-          <span style={{ fontSize: '0.82rem', color: '#ccc', fontWeight: 600 }}>{activeDoc.title}</span>
-        </div>
-        <div className="docs-reader" style={{
-          padding: '12px 16px', fontSize: '0.82rem', color: '#ccc', lineHeight: 1.6,
-          overflowY: 'auto',
-        }}>
-          {docLoading ? <div style={{ color: '#888' }}>Loading…</div> : (
-            <Markdown>{docContent}</Markdown>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="project-explorer" style={{ overflowY: 'auto' }}>
-      {docSections.map(section => {
-        const isOpen = expandedCategories.has(section.category);
-        return (
-          <div key={section.category} className="sidebar-section">
-            <div
-              className={`sidebar-section-title ${!isOpen ? 'collapsed' : ''}`}
-              onClick={() => toggleCategory(section.category)}
-            >
-              <ChevronIcon collapsed={!isOpen} />
-              <span>{section.category.toUpperCase()}</span>
-            </div>
-            {isOpen && (
-              <div className="sidebar-content">
-                {section.docs.map(doc => (
-                  <div
-                    key={doc.url}
-                    className="docs-link-row"
-                    title={doc.description}
-                    style={{
-                      display: 'flex', alignItems: 'flex-start', gap: 8,
-                      padding: '6px 16px', cursor: 'pointer',
-                    }}
-                    onClick={() => openDoc(doc)}
-                  >
-                    <BookIcon />
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: '0.82rem', color: '#ccc' }}>{doc.title}</div>
-                      <div style={{ fontSize: '0.72rem', color: '#888', lineHeight: 1.4, marginTop: 2 }}>
-                        {doc.description}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
-};
 
 // ── Settings Panel ────────────────────────────────────────────────────────
 
@@ -376,6 +181,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isVisible, currentView, ...rest }) =>
 
   const titles: Record<string, string> = {
     explorer: 'Explorer',
+    environment: 'Environment',
     docs: 'User Docs',
     settings: 'Settings',
   };
@@ -393,8 +199,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isVisible, currentView, ...rest }) =>
         />
       )}
 
-      {currentView === 'session' && (
-        <SessionManager availableOperations={rest.availableOperations} />
+      {currentView === 'environment' && (
+        <EnvironmentExplorer workflowResources={rest.workflowResources} />
       )}
 
       {currentView === 'docs' && <DocsPanel />}

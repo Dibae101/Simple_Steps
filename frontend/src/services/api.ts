@@ -477,6 +477,64 @@ export interface LoadedResourceInfo {
     locked: string[];
 }
 
+/** One input of a tool, from core's catalog (GET /api/environment). */
+export interface EnvironmentParam {
+    name: string;
+    /** The Python annotation as written (`int`, `LLM`, `DataFrame`); null when unannotated. */
+    type: string | null;
+    required: boolean;
+    default?: unknown;
+    /** A Literal's options. */
+    choices?: unknown[] | null;
+    nullable?: boolean;
+    description?: string | null;
+    /** Set when the input takes a resource: the declared types that fit it. */
+    resource?: string[];
+}
+
+/** A tool a step can name: the app's, or one of core's built-ins. */
+export interface EnvironmentTool {
+    id: string;
+    label: string;
+    category: string;
+    /** Core's word: `declared` (the app's) or `builtin`. */
+    origin: string;
+    /** The palette's orchestration hint (`map`, `source`, `dataframe`, …); null for a built-in. */
+    kind: string | null;
+    description: string;
+    params: EnvironmentParam[];
+    /** The return annotation as written; null when unannotated. */
+    returns: string | null;
+    returns_form?: string | null;
+}
+
+/** A resource type's entry, as core's grid.resource_entry gives it. */
+export interface EnvironmentResourceType {
+    type: string;
+    description?: string | null;
+    settings: { name: string; type: string; required: boolean; default?: unknown }[];
+    tools: Record<string, {
+        tool_id: string;
+        description?: string | null;
+        params?: EnvironmentParam[];
+        returns?: string | null;
+    }>;
+    bases?: string[];
+}
+
+/** Everything a workflow in this app can use (spec 013). */
+export interface Environment {
+    tools: EnvironmentTool[];
+    resource_types: Record<string, EnvironmentResourceType>;
+    resources: Record<string, LoadedResourceInfo>;
+}
+
+export async function fetchEnvironment(): Promise<Environment> {
+    const r = await fetch(`${API_BASE}/environment`, { credentials: 'include' });
+    if (!r.ok) throw new Error('Failed to load the environment');
+    return r.json();
+}
+
 export async function fetchLoadedResources(): Promise<Record<string, LoadedResourceInfo>> {
     const r = await fetch(`${API_BASE}/resources/loaded`, { credentials: 'include' });
     if (!r.ok) throw new Error('Failed to list ready-made resources');

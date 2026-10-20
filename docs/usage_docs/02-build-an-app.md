@@ -71,8 +71,11 @@ The rules that matter:
   `price` column.
 - **The signature suggests the verb.** `-> bool` suits a filter, `(acc, x)`
   suits a collapse, `-> list` suits an expand, anything else a map.
-- **Write the `Args:` section.** It's the help text in the UI.
-- **Use `category=`** to group tools in the palette.
+- **Write the `Args:` section, and type hints.** The **Environment** panel
+  shows each input's type, default and `Args:` text, and the return type —
+  an input without a hint shows as *untyped*.
+- **Use `category=`** to group tools in the Environment panel and the
+  step editor's tool list.
 
 ### A tool that wants the whole table
 
