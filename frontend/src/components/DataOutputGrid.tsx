@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { isErrorCell } from '../utils/errorCells';
 import type { GridPick, Selection } from '../utils/selection';
+import type { GridSpot } from '../utils/stepsStatus';
 import type { Cell } from '../types/models';
 import type { StagedColumn } from '../hooks/useStagedPreview';
 import CellViewer from './CellViewer';
@@ -27,6 +28,15 @@ function CellContent({ cell }: { cell: Cell }) {
   );
 }
 
+/** The column of the 1×1 frame shown for a step with no output yet — core's
+ *  default output column name. */
+export const EMPTY_FRAME_COLUMN = 'value';
+const EMPTY_FRAME_CELL: Cell = {
+  row_id: 0, column_id: EMPTY_FRAME_COLUMN, value: null, display_value: 'empty',
+  metadata: { empty: true },
+};
+const isEmptyFrameCell = (cell?: Cell) => cell?.metadata?.empty === true;
+
 interface DataOutputGridProps {
   cells?: Cell[];
   onCellClick?: (cell: Cell) => void;
@@ -41,6 +51,12 @@ interface DataOutputGridProps {
   stagedCellMode?: 'idle' | 'scheduled' | 'running';
   /** The output these cells come from; lets a typed cell open its full view. */
   refId?: string;
+  /**
+   * What the pointer is over — the table corner, a column, a row, a cell — or
+   * null when it leaves the grid. In every mode, not just wiring; the steps
+   * bar shows it (context/StepsStatusContext).
+   */
+  onHoverChange?: (spot: GridSpot | null) => void;
 }
 
 export default function DataOutputGrid({
@@ -52,6 +68,7 @@ export default function DataOutputGrid({
   stagedColumns = [],
   stagedCellMode = 'idle',
   refId,
+  onHoverChange,
 }: DataOutputGridProps) {
   const [hoveredCol, setHoveredCol] = useState<string | null>(null);
   // Typed cells opened in place, as "row:column". Each opens in a strip under
@@ -97,7 +114,13 @@ export default function DataOutputGrid({
     }
 
     if (safeCells.length === 0 && sColNames.length === 0) {
-      return { cols: [], rows: [], gridData: {}, structureType: 'empty', stagedColNames: [], stagedData: {} };
+      // A step's Data is always a dataframe. With nothing in it yet — an empty
+      // or undefined expression, or a step not run — it is a 1×1 frame whose
+      // one cell says "empty", drawn by the same grid as any other output.
+      return {
+        cols: [EMPTY_FRAME_COLUMN], rows: [0], gridData: { [`0:${EMPTY_FRAME_COLUMN}`]: EMPTY_FRAME_CELL },
+        structureType: 'grid', stagedColNames: [], stagedData: {},
+      };
     }
 
     const uniqueCols = Array.from(new Set(safeCells.map((c) => c.column_id)));
@@ -195,18 +218,6 @@ export default function DataOutputGrid({
     };
   };
 
-  // ── Empty state ─────────────────────────────────────────────────────────
-
-  if (structureType === 'empty') {
-    return (
-      <div className="output-container empty">
-        <div className="single-value-display empty">
-          <span className="placeholder-text">Empty</span>
-        </div>
-      </div>
-    );
-  }
-
   // ── SCENARIO 0: the step failed — its output is one error cell ─────────
   // `errorCell()` (utils/errorCells.ts) builds it when a run or preview fails,
   // including an expression that doesn't parse.
@@ -249,6 +260,7 @@ export default function DataOutputGrid({
 
       <div
         className={`op-data-grid${wiringMode ? ' wiring-source' : ''}`}
+        onMouseLeave={() => onHoverChange?.(null)}
         style={{
           gridTemplateColumns: `50px repeat(${cols.length}, minmax(100px, 1fr))`,
           ...(wiringMode
@@ -273,7 +285,7 @@ export default function DataOutputGrid({
           onClick={() => {
             if (wiringMode && onPick) onPick({ kind: 'all' });
           }}
-          onMouseEnter={() => wiringMode && setHoveredCol('__table__')}
+          onMouseEnter={() => { if (wiringMode) setHoveredCol('__table__'); onHoverChange?.({ kind: 'table' }); }}
           onMouseLeave={() => wiringMode && setHoveredCol(null)}
         >
           #
@@ -289,7 +301,7 @@ export default function DataOutputGrid({
               ...(stagedColNames.includes(col) ? { background: '#fff8dc', color: '#665e30' } : {}),
             }}
             onClick={(e) => handleColumnClick(col, e)}
-            onMouseEnter={() => wiringMode && setHoveredCol(col)}
+            onMouseEnter={() => { if (wiringMode) setHoveredCol(col); onHoverChange?.({ kind: 'column', column: col }); }}
             onMouseLeave={() => wiringMode && setHoveredCol(null)}
           >
             {col}
@@ -309,7 +321,7 @@ export default function DataOutputGrid({
                 transition: 'background 0.1s ease',
               } : {}}
               onClick={(e) => handleRowClick(r, e)}
-              onMouseEnter={() => wiringMode && setHoveredRow(r)}
+              onMouseEnter={() => { if (wiringMode) setHoveredRow(r); onHoverChange?.({ kind: 'row', row: r }); }}
               onMouseLeave={() => wiringMode && setHoveredRow(null)}
             >
               {r}
@@ -372,7 +384,7 @@ export default function DataOutputGrid({
               return (
                 <div
                   key={cellKey}
-                  className={`grid-cell ${cell ? 'has-value' : 'empty'}${isErrorCell(cell) ? ' error-cell' : ''}${canOpen(cell) ? ' openable' : ''}`}
+                  className={`grid-cell ${cell ? 'has-value' : 'empty'}${isErrorCell(cell) ? ' error-cell' : ''}${canOpen(cell) ? ' openable' : ''}${isEmptyFrameCell(cell) ? ' empty-frame-cell' : ''}`}
                   role="gridcell"
                   onClick={() => cell && handleCellWireClick(cell)}
                   title={canOpen(cell) ? `${cell?.summary ?? ''} — click to open it here` : (cell?.display_value ?? '')}
@@ -382,6 +394,7 @@ export default function DataOutputGrid({
                       setHoveredCell(cellKey);
                       setHoveredCol(c);
                     }
+                    onHoverChange?.({ kind: 'cell', row: r, column: c, value: cell?.display_value });
                   }}
                   onMouseLeave={() => {
                     if (wiringMode) {

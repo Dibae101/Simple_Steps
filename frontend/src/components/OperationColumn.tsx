@@ -13,6 +13,7 @@ import StepWidget from './StepWidget';
 import type { PanelId } from './stepPanels';
 import StepOverview from './StepOverview';
 import { useStepWiring } from '../context/StepWiringContext';
+import { useSetGridHover } from '../context/StepsStatusContext';
 import { useStagedPreview } from '../hooks/useStagedPreview';
 import './OperationColumn.css';
 
@@ -106,6 +107,8 @@ export default function OperationColumn({
 
   // Wiring context — this column is a wiring SOURCE when a later step's formula is focused
   const { wiringState, pickFrom, setActiveSelection } = useStepWiring();
+  // What the pointer is over in this step's grid, for the steps bar's status.
+  const setGridHover = useSetGridHover();
   const isWiringSource =
     wiringState.receivingStepId !== null &&
     wiringState.receivingStepId !== step.id &&
@@ -644,6 +647,7 @@ export default function OperationColumn({
                         highlight={wiringState.activeSelection?.step === step.label ? wiringState.activeSelection : null}
                         stagedColumns={showExecutionStagedCells ? stagedPreview.columns : []}
                         stagedCellMode={stagedCellMode}
+                        onHoverChange={(spot) => setGridHover(spot && { ...spot, step: step.label })}
                       />
                     </div>
                   </div>

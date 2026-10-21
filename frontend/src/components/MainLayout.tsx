@@ -20,6 +20,8 @@ import type { Workflow } from '../types/models';
 import { initialWorkflow } from '../mocks/initialData';
 import { nextUntitledName } from '../utils/workflowNames';
 import { StepWiringProvider } from '../context/StepWiringContext';
+import { StepsStatusProvider } from '../context/StepsStatusContext';
+import StepsStatusText from './StepsStatusText';
 import ResourcesMenu from './ResourcesMenu';
 import BarChevrons from './BarChevrons';
 import WorkflowOverview from './WorkflowOverview';
@@ -705,9 +707,9 @@ export default function MainLayout() {
           downDisabled={stepsMaximized}
         />
         <span className="steps-footer__title">Steps</span>
-        {/* Status slot — e.g. what is selected. Empty for now. */}
-        <span className="steps-footer__status" />
       </div>
+      {/* Bottom right: what the pointer is over, or what's being selected. */}
+      <StepsStatusText />
     </div>
   );
 
@@ -798,7 +800,6 @@ export default function MainLayout() {
 
   const canvasBlock = (
     <main className="main-content horizontal-scroll-area" ref={canvasRef}>
-      <StepWiringProvider>
         <div
           className="columns-container"
           data-testid="columns-container"
@@ -858,11 +859,13 @@ export default function MainLayout() {
             </button>
           </div>
         </div>
-      </StepWiringProvider>
     </main>
   );
 
   return (
+    // Spans everything, detached step windows included, so any step's grid
+    // can report what the pointer is over to the steps bar.
+    <StepsStatusProvider>
     <div className="main-layout" data-testid="main-layout">
       <ActivityBar activeView={activeActivityView} onViewChange={handleViewChange} />
 
@@ -949,7 +952,9 @@ export default function MainLayout() {
                 </Allotment.Pane>
                 <Allotment.Pane minSize={0}>
                   {/* Steps, bar, console, then the canvas background for any
-                      height neither fills. */}
+                      height neither fills. The wiring provider spans the
+                      body so the steps bar can show a selection being made. */}
+                  <StepWiringProvider>
                   <div className="center-body" ref={bodyRef}>
                     <div
                       className="steps-region"
@@ -990,6 +995,7 @@ export default function MainLayout() {
                     {/* Whatever the steps and an expanded console don't fill. */}
                     {!(consoleDocked && !logCollapsed) && <div className="center-filler" />}
                   </div>
+                  </StepWiringProvider>
                 </Allotment.Pane>
               </Allotment>
             </div>
@@ -1088,5 +1094,6 @@ export default function MainLayout() {
         onClose={() => setIsFileEditorOpen(false)}
       />
     </div>
+    </StepsStatusProvider>
   );
 }

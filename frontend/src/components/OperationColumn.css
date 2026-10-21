@@ -983,6 +983,13 @@
   font-size: 0.72rem;
 }
 
+/* The one cell of the 1×1 frame a step shows before it has output: a
+   placeholder, so it reads as "nothing here", not as the text "empty". */
+.grid-cell.empty-frame-cell {
+  color: #999;
+  font-style: italic;
+}
+
 
 /* ── Step header: hover controls and status spinner ────────────────────── */
 /* Minimize / maximize, top right of the header, shown on hover. Kept clear of
