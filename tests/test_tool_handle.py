@@ -53,10 +53,15 @@ def test_brackets_build_a_core_step_that_runs_the_function():
 
 
 def test_a_step_input_infers_the_verb():
-    """REQ-TOOL-001: tool(wf["x"]) declares a step, its verb inferred."""
+    """REQ-TOOL-001: tool(wf["x"]) declares a step, its verb inferred.
+
+    Since core 009 (decisions 5-6) the step saves ``mod.auto()`` and core picks
+    the verb from the data at each run; here it picks ``map``."""
     wf = _readings()
     wf["a"] = th_scale(wf["r"])
-    assert wf.step("a").operation.to_dict()["modifiers"][0]["kind"] == "map"
+    assert wf.step("a").operation.to_dict()["modifiers"][0]["kind"] == "auto"
+    wf.run("a")
+    assert wf.step("a").output.meta["auto"]["verb"] == "map"
 
 
 def test_the_tool_is_not_registered_with_core():

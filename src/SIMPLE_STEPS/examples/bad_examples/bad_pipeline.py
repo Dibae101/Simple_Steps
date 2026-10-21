@@ -50,13 +50,12 @@ def build_corrected() -> grid.Workflow:
     # columns and types
     wf["missing_column"] = identity[mod.select(columns=["n"])](wf["readings"])
     wf["parameter_not_a_column"] = greet[mod.map()](wf["people_named"])
-    wf["output_replaces_input"] = double_n[mod.map(name="doubled")](wf["readings"])
+    wf["reads_a_result"] = double_n[mod.map()](wf["readings"])
     wf["nullable_column"] = add_one_or_zero[mod.map()](wf["gappy"])
     wf["table_returns_text"] = describe_rows[mod.table()](wf["readings"])
 
     # ran, but warned
     wf["argument_hides_column"] = label[mod.map()](wf["readings"])
-    wf["output_overwrites_value"] = double_n[mod.map(name="doubled_again")](wf["scored"])
 
     # ran, but rows failed
     wf["uncaught_failure"] = reciprocal[mod.map(), mod.try_except(default=0.0)](wf["readings"])

@@ -290,20 +290,21 @@ def uncaught_failed(output: Any) -> int:
 
     SHIM(core §C21): core decides this in ``run_all`` with the private
     ``grid._uncaught_failure``, which returns only the first such row. This is
-    the same rule, read from the public ledger, counted. Delete when core makes
-    it public (``Output.uncaught`` or similar).
+    the same rule, read from the public ``row_states`` and ``notes``, counted.
+    Rows the breaker stopped ("not run: stopped after 5 failures…") are
+    ``failed`` with no cause, so they count too. Delete when core makes it
+    public (``Output.uncaught`` or similar).
     """
-    ledger = getattr(output, "ledger", None)
-    if ledger is None or not len(ledger) or "status" not in ledger.columns:
+    row_states = getattr(output, "row_states", None)
+    if row_states is None or not len(row_states):
         return 0
-    failed = ledger[ledger["status"] == "failed"]
-    caught = failed["caught"] if "caught" in failed.columns else None
-    cause = failed["cause"] if "cause" in failed.columns else None
+    notes = getattr(output, "notes", None) or {}
     count = 0
-    for i in range(len(failed)):
-        if caught is not None and caught.iloc[i] is True:
+    for row_id, state in row_states.items():
+        if state != "failed":
             continue
-        if cause is not None and isinstance(cause.iloc[i], str) and cause.iloc[i]:
+        note = notes.get(row_id) or {}
+        if note.get("caught") is True or note.get("cause"):
             continue
         count += 1
     return count

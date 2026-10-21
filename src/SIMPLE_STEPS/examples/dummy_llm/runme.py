@@ -36,7 +36,8 @@ example.check("dummy_llm", "resources", twin=pipeline.build_resources, live=pipe
     "regions": {"value": ["west", "east", "west", "west"]},
     "summaries": {"value": ["[fake-1] A", "[fake-1] B"]},
     "tiny_summaries": {"value": ["[tiny-1] A", "[tiny-1] B"]},
-    "regions_bound": {"key": ["SF", "NYC", "SF", "LA"], "value": ["west", "east", "west", "west"]},
+    # a map step is only its results: the keys stay in wf["keys"], linked by row id
+    "regions_bound": {"value": ["west", "east", "west", "west"]},
     "hello": {"value": ["[fake-1] HI"]},
     "inferred": lambda data, metrics: metrics.get("verb") == "map" or f"ran as {metrics.get('verb')}, not map",
     # the ready-made house_llm is "house-1"; the workflow's saved override wins

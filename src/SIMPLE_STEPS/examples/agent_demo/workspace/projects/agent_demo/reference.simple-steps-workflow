@@ -18,8 +18,15 @@
       }
     },
     {
+      "name": "with_totals",
+      "expression": "zip_(wf[\"orders\"], wf[\"totals\"])",
+      "meta": {
+        "label": "with_totals"
+      }
+    },
+    {
       "name": "large",
-      "expression": "is_large_order[mod.filter()](wf[\"totals\"], threshold=100)",
+      "expression": "is_large_order[mod.filter()](wf[\"with_totals\"], threshold=100)",
       "meta": {
         "label": "large"
       }
@@ -33,7 +40,7 @@
     },
     {
       "name": "per_city",
-      "expression": "sum_totals[mod.collapse(by=\"city\", initial=0)](wf[\"totals\"])",
+      "expression": "sum_totals[mod.collapse(by=\"city\", initial=0)](wf[\"with_totals\"])",
       "meta": {
         "label": "per_city"
       }

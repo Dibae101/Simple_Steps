@@ -658,6 +658,52 @@
   background: #eaeaea;
 }
 
+/* The corner, split on its diagonal (top-right to bottom-left): the
+   upper-left triangle selects the whole table; the lower-right triangle
+   carries the row-number column's "#" label. */
+.grid-corner {
+  position: relative;
+  padding: 0;
+  min-height: 22px;
+}
+
+.grid-corner-select {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: #d6d6d6;
+  clip-path: polygon(0 0, 100% 0, 0 100%);
+  cursor: pointer;
+  transition: background 0.1s ease;
+}
+
+.grid-corner-select:hover,
+.grid-corner-select[data-state='hover'] {
+  background: #bdbdbd;
+}
+
+/* The same amber as a picked column or row (DataOutputGrid's SELECTED_BG). */
+.grid-corner-select[data-state='selected'] {
+  background: #f5cf5f;
+}
+
+.grid-corner-select:focus-visible {
+  outline: 2px solid #1d4ed8;
+  outline-offset: -2px;
+}
+
+.grid-corner-label {
+  position: absolute;
+  right: 4px;
+  bottom: 1px;
+  font-size: 10px;
+  line-height: 1;
+  color: #777;
+  pointer-events: none;
+}
+
 /* Data Rows */
 .grid-row {
     display: contents; /* Allows children to participate in the parent grid */

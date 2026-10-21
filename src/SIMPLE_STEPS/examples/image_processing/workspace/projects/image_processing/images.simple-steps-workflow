@@ -51,15 +51,29 @@
       }
     },
     {
+      "name": "named",
+      "expression": "zip_(wf[\"files\"], wf[\"images\"])",
+      "meta": {
+        "label": "named"
+      }
+    },
+    {
       "name": "dark",
-      "expression": "is_dark[mod.filter()](wf[\"images\"], threshold=80)",
+      "expression": "is_dark[mod.filter()](wf[\"named\"], threshold=80)",
       "meta": {
         "label": "dark"
       }
     },
     {
+      "name": "bright_by_file",
+      "expression": "zip_(wf[\"files\"], wf[\"brightness\"])",
+      "meta": {
+        "label": "bright_by_file"
+      }
+    },
+    {
       "name": "brightest",
-      "expression": "identity[mod.sort(by=\"brightness\", ascending=False)](wf[\"brightness\"])",
+      "expression": "identity[mod.sort(by=\"brightness\", ascending=False)](wf[\"bright_by_file\"])",
       "meta": {
         "label": "brightest"
       }

@@ -71,7 +71,8 @@ def _parquet_path_for_ref(ref_id: str, session_token: Optional[str] = None) -> s
 def _save_parquet_cache(df: pd.DataFrame, ref_id: str, session_token: str) -> None:
     path = _parquet_path_for_ref(ref_id, session_token)
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    df.to_parquet(path, index=False)
+    # The index is a step's row ids (core 009 §2); keep it.
+    df.to_parquet(path)
 
 
 def _load_parquet_cache(ref_id: str, preferred_session_token: Optional[str] = None) -> Optional[pd.DataFrame]:

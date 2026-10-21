@@ -273,22 +273,24 @@ export default function DataOutputGrid({
         }}
         role="grid"
       >
-        {/* Header Row */}
-        <div
-          className="grid-header-cell row-index-header"
-          title={wiringMode ? 'Select the whole table' : '#'}
-          style={wiringMode ? {
-            cursor: 'crosshair',
-            background: highlight?.kind === 'all' ? SELECTED_BG : hoveredCol === '__table__' ? HOVER_BG : undefined,
-            transition: 'background 0.1s ease',
-          } : {}}
-          onClick={() => {
-            if (wiringMode && onPick) onPick({ kind: 'all' });
-          }}
-          onMouseEnter={() => { if (wiringMode) setHoveredCol('__table__'); onHoverChange?.({ kind: 'table' }); }}
-          onMouseLeave={() => wiringMode && setHoveredCol(null)}
-        >
-          #
+        {/* Header Row. The corner is split on its diagonal, as in Excel: the
+            upper-left triangle selects the whole table, the lower-right one
+            labels the row-number column beneath it. */}
+        <div className="grid-header-cell row-index-header grid-corner">
+          <button
+            type="button"
+            className="grid-corner-select"
+            aria-label="Select the whole table"
+            title="Select the whole table"
+            data-state={highlight?.kind === 'all' ? 'selected' : hoveredCol === '__table__' ? 'hover' : undefined}
+            style={wiringMode ? { cursor: 'crosshair' } : undefined}
+            onClick={() => {
+              if (wiringMode && onPick) onPick({ kind: 'all' });
+            }}
+            onMouseEnter={() => { setHoveredCol('__table__'); onHoverChange?.({ kind: 'table' }); }}
+            onMouseLeave={() => setHoveredCol(null)}
+          />
+          <span className="grid-corner-label" aria-hidden="true">#</span>
         </div>
         {cols.map((col) => (
           <div

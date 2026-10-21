@@ -6,7 +6,7 @@ same steps, one Python line per step, in simple-steps-core's syntax. The
 formula a step saves is exactly the right-hand side of its line::
 
     saved:   scale[mod.map(name="score")](wf["readings"])
-    Python:  wf["scored"] = scale[mod.map(name="score")](wf["readings"])
+    Python:  wf["score"] = scale[mod.map(name="score")](wf["readings"])
 
 ``runme.py`` runs both — the saved file through the app, the twin straight in
 core — and checks every step's output is the same. The twin imports the
@@ -43,8 +43,10 @@ def build_all_orchestrations() -> grid.Workflow:
     wf["readings"] = to_rows[mod.source()](data=READINGS)
     wf["records"] = to_rows[mod.source()](data='{"value": [{"city": "SF", "temp": 18.0}, {"city": "NYC", "temp": 31.0}]}')
 
-    # map: one value per row
-    wf["scored"] = scale[mod.map(name="score")](wf["readings"])
+    # map: one value per row. A map step is only its results (the `score`
+    # column), on the readings' row ids; zip_ puts the two side by side.
+    wf["score"] = scale[mod.map(name="score")](wf["readings"])
+    wf["scored"] = zip_(wf["readings"], wf["score"])
 
     # rows: filter, slice, sort, distinct (no tool runs for the last three)
     wf["kept"] = is_big[mod.filter()](wf["scored"])
@@ -57,8 +59,10 @@ def build_all_orchestrations() -> grid.Workflow:
     wf["dropped"] = identity[mod.drop(columns=["score"])](wf["scored"])
     wf["renamed"] = identity[mod.rename(columns={"n": "count"})](wf["scored"])
 
-    # group, then collapse per group
-    wf["bucketed"] = label_city[mod.group(name="bucket")](wf["scored"])
+    # group, then collapse per group. group is only the key, on each row's
+    # id; zip_ pairs every row with its key for the collapse.
+    wf["bucket"] = label_city[mod.group(name="bucket")](wf["scored"])
+    wf["bucketed"] = zip_(wf["scored"], wf["bucket"])
     wf["per_city"] = add_n[mod.collapse(by="bucket", initial=0)](wf["bucketed"])
 
     # collapse to one row: a builtin reducer and a tool

@@ -1,7 +1,7 @@
 """
 ask.py — try the agent with a real model, from the terminal.
 
-    python examples/agent_demo/ask.py                    # the five requests in tasks.py
+    python examples/agent_demo/ask.py                    # the six requests in tasks.py
     python examples/agent_demo/ask.py "keep tea orders"  # one request of your own
 
 With no request, it starts from the ``start`` workflow and sends each request

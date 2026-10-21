@@ -141,10 +141,10 @@
       }
     },
     {
-      "name": "output_replaces_input",
-      "expression": "double_n[mod.map(name=\"n\")](wf[\"readings\"])",
+      "name": "reads_a_result",
+      "expression": "double_n[mod.map()](wf[\"scored\"])",
       "meta": {
-        "label": "output_replaces_input"
+        "label": "reads_a_result"
       }
     },
     {
@@ -166,13 +166,6 @@
       "expression": "label[mod.map()](wf[\"readings\"], city=\"Paris\")",
       "meta": {
         "label": "argument_hides_column"
-      }
-    },
-    {
-      "name": "output_overwrites_value",
-      "expression": "double_n[mod.map()](wf[\"scored\"])",
-      "meta": {
-        "label": "output_overwrites_value"
       }
     },
     {
