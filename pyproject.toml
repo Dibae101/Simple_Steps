@@ -30,7 +30,7 @@ dependencies = [
     # main at install time, which drifts from the submodule this repo is
     # developed against -- an older core lacks ResourceSpec and makes the
     # whole package unimportable. Bump this together with the submodule.
-    "simple-steps-core @ git+https://github.com/stusynakowski/simple-steps-core.git@b9f66d58754da54f4e5490362e660ac785a117f9",
+    "simple-steps-core @ git+https://github.com/stusynakowski/simple-steps-core.git@523ad1de1a8eddfbafb439bfe02a23fea1e90067",
     "fastapi>=0.109.0",
     "uvicorn[standard]>=0.27.0",
     "pydantic>=2.6.0",

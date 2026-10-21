@@ -43,6 +43,25 @@
 - Backend tests now **1 failed** (the known `test_select_cell`) / 353 passed.
 - **Working rule:** tests change only when unavoidable; each key core change
   is confirmed by the owner before it lands, in small pieces.
+- **2026-10-21 — pin moved to `523ad1d`** (core's answers to asks C21–C27),
+  each piece confirmed by the owner: the pin; deleting `SHIM(core §C21)` for
+  `output.uncaught`; accepting the two new refusals (`zip_` sharing a
+  column, `collapse(by=…)` on a missing column) plus a bad example for the
+  first; input values shown only in the popover, labelled (spec 014
+  REQ-VIS-060). Backend 1 failed (known) / 353 passed; examples all pass;
+  frontend 149/149; preflight clean; `smoke_install` all stages passed.
+- **Phase 4–5 first slice built ahead of phase 2** (frontend only, no core
+  dependency): selection in the grid (cell, row, column, corner triangle,
+  Shift block, ⌘/Ctrl scattered; one dark outline round the selection), the
+  open control on the selection's corner, and the selection popover (centred
+  where opened, click-off closes, drag moves and pins, minimize/close, short
+  and full expression, a state line). A typed cell's full view is
+  `CellViewer` embedded in the popover (owner: a widget nested in a widget;
+  the popover owns the controls, events are isolated). The in-grid
+  click-to-open strip is gone; its one test now opens the cell through the
+  popover. **Still to do:** the popover's inputs (left) and outputs (right)
+  toggles, which need phase 2; the status bar line for a selection
+  (REQ-VIS-013 — shown in the grid footer for now).
 
 ## Summary
 

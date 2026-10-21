@@ -43,6 +43,13 @@
       }
     },
     {
+      "name": "doubled",
+      "expression": "double_n[mod.map(name=\"n\")](wf[\"readings\"])",
+      "meta": {
+        "label": "doubled"
+      }
+    },
+    {
       "name": "bare_name",
       "expression": "double_n[mod.map()](readings)",
       "meta": {
@@ -145,6 +152,13 @@
       "expression": "double_n[mod.map()](wf[\"scored\"])",
       "meta": {
         "label": "reads_a_result"
+      }
+    },
+    {
+      "name": "zip_shares_a_column",
+      "expression": "zip_(wf[\"readings\"], wf[\"doubled\"])",
+      "meta": {
+        "label": "zip_shares_a_column"
       }
     },
     {

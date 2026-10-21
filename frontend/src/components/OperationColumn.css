@@ -1120,3 +1120,37 @@
   color: orange;
   font-size: 0.85em;
 }
+
+/* The selection's open control (spec 014 REQ-VIS-040): a small square at the
+   selection's top-right corner, shown only while the pointer is over the
+   selection (or it has keyboard focus). It opens the selection popover. */
+.sel-open {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid #1f2937;
+  border-radius: 3px;
+  background: #fff;
+  color: #1f2937;
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s ease;
+}
+
+.sel-open.sel-open-shown,
+.sel-open:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.sel-open:hover { background: #1f2937; color: #fff; }
+
+.grid-footer-selection { color: #555; }

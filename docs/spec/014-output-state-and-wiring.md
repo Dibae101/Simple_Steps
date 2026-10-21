@@ -325,6 +325,13 @@ connects.
   `blocked by score[2]`, `out of date · re-run to update`,
   `changed · was 3.0`. A changed argument carries its blue dot inside the
   expression (REQ-VIS-025). Argument values never appear.
+- **REQ-VIS-060:** **input values appear only in the popover, always
+  labelled as inputs** (owner, 2026-10-21). Core's `wf.cell(...)["inputs"]`
+  carries the values read and `wf.arg_changes` what a stale value was
+  computed with; the popover's inputs view shows them as
+  `input r · n = 2`, and its state line as
+  `out of date · computed with weight=1.5 (now 2.0)`. They never appear in
+  the grid, the formula bar or the status line.
 - **REQ-VIS-048:** for a whole-table selection, the header is step-level:
   the step's expression, status, mapping shape (REQ-VIS-009), what `auto`
   chose, and when it last ran.

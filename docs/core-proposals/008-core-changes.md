@@ -93,6 +93,26 @@ New asks, each found by running core at `b9f66d5`:
 | **C26** | `009-status.md` and `ui-context.md` say `wf.preview` / `wf.cell` are uncommitted | both are in `b9f66d5` |
 | **C27** | `wf.cell(...)["inputs"]` lists every input cell: argument references too, and the column(s) read, not only the main input's row | for `scale[mod.map()](wf["r"], weight=wf["w"][0][cols["w"]])`, `wf.cell("s", 1, "value")["inputs"]` is `[{"step": "r", "id": 1}]` — no `w` row 0, no column `n`. The app reconstructs both from the saved formula meanwhile (spec 014 REQ-VIS-058) |
 
+## Status at 523ad1d
+
+Core answered [`010-asks-at-b9f66d5.md`](010-asks-at-b9f66d5.md) in its own
+`docs/core-proposals/010-status.md`. Checked by **running** core at `523ad1d`
+on 2026-10-21 (not by reading the reply), and the app moved to it the same
+day, with the owner's confirmation:
+
+| Ask | Checked |
+|---|---|
+| C21 | `output.uncaught` → `[1]`, `output.stops_run` → `True` for one failing row. **`SHIM(core §C21)` deleted**; metrics read `len(output.uncaught)` |
+| C22 | `zip_(r, d)` sharing `n` is `invalid`: *"zip_: 'n' is in both 'r' and 'd'; rename one (mod.map(name=…) or mod.rename)"*. New bad example `zip_shares_a_column` |
+| C23 | *"collapse groups by 'city', which 's' does not have (it has value)"* at declaration |
+| C24, C27 | `inputs` lists both bindings, each with `columns`, `argument`, a cell `state` (`known`) and `values` |
+| C25 | editing row 1's `n` → `wf.stale_rows("s")` = `[1]`; editing a column the step doesn't read leaves it fresh |
+| C26 | done — though core's `010-status.md` itself still says "uncommitted"; it's in `523ad1d` |
+
+Also new in core: editing a step that has run keeps its output, stale, with a
+reason (`meta["stale_reason"]`: `updated args`, …), and `wf.arg_changes(step)`
+says what it was computed with. The app uses these from dev_plan/124 phase 2.
+
 ## The goal: the app imports core's grid and nothing else
 
 The app should use only `simple_steps_core.grid`'s public functions. Each

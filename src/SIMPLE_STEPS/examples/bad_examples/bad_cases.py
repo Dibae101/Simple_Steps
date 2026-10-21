@@ -46,6 +46,7 @@ SOURCES = [
     ("gappy", """to_rows[mod.source()](data='{"n": [1, null, 3]}')"""),
     ("people", """to_rows[mod.source()](data='{"first": ["Ada", "Bo"]}')"""),
     ("scored", 'double_n[mod.map()](wf["readings"])'),
+    ("doubled", 'double_n[mod.map(name="n")](wf["readings"])'),
 ]
 
 #: Extra good steps only the corrected workflow needs, before the cases.
@@ -121,6 +122,11 @@ CASES = [
          "A map step is only its result: scored holds value, not the readings' n. "
          "Read n from readings, or zip_ the two to have both.",
          'double_n[mod.map()](wf["readings"])'),
+    Case("zip_shares_a_column", "Columns and types",
+         'zip_(wf["readings"], wf["doubled"])', "refused", "zip_: 'n' is in both 'readings' and 'doubled'; rename one",
+         "doubled names its result n, like the readings' own n; side by side, one "
+         "would have to win. Give the result its own name.",
+         'zip_(wf["readings"], wf["scored"])'),
     Case("nullable_column", "Columns and types",
          'add_one[mod.map()](wf["gappy"])', "refused", 'gappy.n can be None, but add_one() takes n: int; accept int | None, or filter the Nones first',
          "gappy.n has a gap, but add_one takes n: int. Use a tool that "

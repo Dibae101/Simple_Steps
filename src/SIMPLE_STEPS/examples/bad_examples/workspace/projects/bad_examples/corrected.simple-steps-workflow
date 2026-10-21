@@ -43,6 +43,13 @@
       }
     },
     {
+      "name": "doubled",
+      "expression": "double_n[mod.map(name=\"n\")](wf[\"readings\"])",
+      "meta": {
+        "label": "doubled"
+      }
+    },
+    {
       "name": "people_named",
       "expression": "identity[mod.rename(columns={\"first\": \"name\"})](wf[\"people\"])",
       "meta": {
@@ -152,6 +159,13 @@
       "expression": "double_n[mod.map()](wf[\"readings\"])",
       "meta": {
         "label": "reads_a_result"
+      }
+    },
+    {
+      "name": "zip_shares_a_column",
+      "expression": "zip_(wf[\"readings\"], wf[\"scored\"])",
+      "meta": {
+        "label": "zip_shares_a_column"
       }
     },
     {

@@ -808,7 +808,6 @@ def _restore_bound_columns(frame: pd.DataFrame, renames: Dict[str, str],
 def _engine_metrics(operation: dict, step, output) -> dict:
     """What core adds to a run's metrics: the operation it ran, the state of
     each row, and its warnings (spec 009)."""
-    from .core_bridge import uncaught_failed
     row_states = output.row_states
     failed = output.failed
     errors = [{"unit": str(unit), "error": str(row.get("error", ""))}
@@ -825,7 +824,7 @@ def _engine_metrics(operation: dict, step, output) -> dict:
         "failed": int(len(failed)),
         # Failed rows that stop Run All: not blocked upstream, not caught by
         # mod.try_except (REQ-RUN-003).
-        "uncaught_failed": uncaught_failed(output),
+        "uncaught_failed": len(output.uncaught),
         # Valid but probably not meant: an argument overriding a column, an
         # output replacing one (REQ-RUN-001).
         "warnings": [str(w) for w in (getattr(step, "warnings", None) or ())],
