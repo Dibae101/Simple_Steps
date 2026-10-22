@@ -93,6 +93,8 @@ export default function OperationColumn({
   // open one can be collapsed to its name bar.
   const [openPanels, setOpenPanels] = useState<PanelId[]>(['data']);
   const [collapsedPanels, setCollapsedPanels] = useState<Set<PanelId>>(new Set());
+  // The data's size and selection, from the grid, shown on the Data bar.
+  const [dataNote, setDataNote] = useState('');
   const isOpen = (panel: PanelId) => openPanels.includes(panel);
   const togglePanel = (panel: PanelId) =>
     setOpenPanels((open) => open.includes(panel) ? open.filter((p) => p !== panel) : [...open, panel]);
@@ -631,7 +633,7 @@ export default function OperationColumn({
 
               {/* Data Tab Content */}
               {isOpen('data') && (
-                <StepWidget id="data" collapsed={collapsedPanels.has('data')} onToggleCollapse={toggleCollapsed} background="#1e1e1e" maxHeight={widgetMaxHeight}>
+                <StepWidget id="data" collapsed={collapsedPanels.has('data')} onToggleCollapse={toggleCollapsed} background="#1e1e1e" maxHeight={widgetMaxHeight} note={dataNote}>
                   <div
                     className="tab-content status-content"
                     onMouseEnter={() => { if (isWiringSource) setIsWiringHovered(true); }}
@@ -648,6 +650,7 @@ export default function OperationColumn({
                         stagedColumns={showExecutionStagedCells ? stagedPreview.columns : []}
                         stagedCellMode={stagedCellMode}
                         onHoverChange={(spot) => setGridHover(spot && { ...spot, step: step.label })}
+                        onNoteChange={setDataNote}
                       />
                     </div>
                   </div>

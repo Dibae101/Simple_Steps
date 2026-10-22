@@ -11,7 +11,14 @@
 
 import { compactRows } from './stepsStatus';
 
-export type GridSelKind = 'cell' | 'block' | 'rows' | 'columns' | 'all' | 'cells';
+/**
+ * The row-number column (the index), as a column of the selection: the
+ * corner's lower-right triangle selects it (spec 014 REQ-VIS-057). Its header
+ * is the corner. Never a data column's name.
+ */
+export const INDEX_COL = '\u0000index';
+
+export type GridSelKind = 'cell' | 'block' | 'rows' | 'columns' | 'all' | 'cells' | 'index';
 
 export interface GridSel {
   kind: GridSelKind;
@@ -28,6 +35,7 @@ export type GridSelPick =
   | { kind: 'cell'; row: number; col: string }
   | { kind: 'row'; row: number }
   | { kind: 'column'; col: string }
+  | { kind: 'index' }
   | { kind: 'all' };
 
 export interface PickModifiers {
@@ -60,6 +68,8 @@ function single(pick: GridSelPick, rows: number[], cols: string[]): GridSel {
       return { kind: 'rows', cells: cellsOf([pick.row], cols), headers: [], anchor: { row: pick.row, col: cols[0] } };
     case 'column':
       return { kind: 'columns', cells: cellsOf(rows, [pick.col]), headers: [pick.col], anchor: { row: rows[0], col: pick.col } };
+    case 'index':
+      return { kind: 'index', cells: cellsOf(rows, [INDEX_COL]), headers: [INDEX_COL], anchor: null };
     case 'all':
       return { kind: 'all', cells: cellsOf(rows, cols), headers: [...cols], anchor: null };
   }
@@ -107,7 +117,7 @@ export function applyGridPick(
   prev: GridSel | null, pick: GridSelPick, mods: PickModifiers, rows: number[], cols: string[],
 ): GridSel | null {
   let next: GridSel;
-  if (prev && mods.extend && prev.anchor && pick.kind !== 'all') next = extended(prev, pick, rows, cols);
+  if (prev && mods.extend && prev.anchor && pick.kind !== 'all' && pick.kind !== 'index') next = extended(prev, pick, rows, cols);
   else if (prev && mods.toggle && pick.kind !== 'all') next = toggled(prev, pick, rows, cols);
   else next = single(pick, rows, cols);
   return next.cells.length || next.headers.length ? next : null;
@@ -122,20 +132,25 @@ export function inGridSel(sel: GridSel | null, row: number, col: string): boolea
 /**
  * Which sides of a cell lie on the selection's outline, so the selection is
  * drawn as one box round its edge rather than a box per cell. The header row
- * is row -1, just above the first row.
+ * is row -1, just above the first row; the index (INDEX_COL) is the column
+ * left of the first.
  */
-export function selectionEdges(sel: GridSel | null, row: number, col: string, rows: number[], cols: string[]) {
+export function selectionEdges(sel: GridSel | null, row: number, col: string, rows: number[], dataCols: string[]) {
   const none = { top: false, right: false, bottom: false, left: false };
-  if (!inGridSel(sel, row, col)) return none;
+  // A whole row's box takes in its row number, as a column's takes in its header.
+  const has = (r: number, c: string) =>
+    inGridSel(sel, r, c) || (sel?.kind === 'rows' && c === INDEX_COL && inGridSel(sel, r, dataCols[0]));
+  if (!has(row, col)) return none;
+  const cols = [INDEX_COL, ...dataCols];
   const i = row === -1 ? -1 : rows.indexOf(row);
   const above = i <= 0 ? -1 : rows[i - 1];          // the first row sits under the header
   const below = i === -1 ? rows[0] : rows[i + 1];
   const c = cols.indexOf(col);
   return {
-    top: i === -1 || !inGridSel(sel, above, col),
-    bottom: below === undefined || !inGridSel(sel, below, col),
-    left: c === 0 || !inGridSel(sel, row, cols[c - 1]),
-    right: c === cols.length - 1 || !inGridSel(sel, row, cols[c + 1]),
+    top: i === -1 || !has(above, col),
+    bottom: below === undefined || !has(below, col),
+    left: c === 0 || !has(row, cols[c - 1]),
+    right: c === cols.length - 1 || !has(row, cols[c + 1]),
   };
 }
 
@@ -144,8 +159,9 @@ export function selectionEdges(sel: GridSel | null, row: number, col: string, ro
  * rightmost header for a column or whole-table pick, otherwise the rightmost
  * cell of its first row. `row` is -1 for a header.
  */
-export function controlCorner(sel: GridSel | null, rows: number[], cols: string[]): { row: number; col: string } | null {
+export function controlCorner(sel: GridSel | null, rows: number[], dataCols: string[]): { row: number; col: string } | null {
   if (!sel) return null;
+  const cols = [INDEX_COL, ...dataCols];
   if (sel.headers.length) {
     const col = cols.filter((c) => sel.headers.includes(c)).pop();
     return col === undefined ? null : { row: -1, col };
@@ -156,10 +172,21 @@ export function controlCorner(sel: GridSel | null, rows: number[], cols: string[
   return col === undefined ? null : { row, col };
 }
 
-/** The rows and columns a selection touches, in the grid's order (what the popover shows). */
+/**
+ * Whether a selection takes whole columns (a column, the whole table, the
+ * index): then it means every row of the step, not just the rows loaded.
+ */
+export function takesWholeColumns(sel: GridSel): boolean {
+  return sel.kind === 'columns' || sel.kind === 'all' || sel.kind === 'index';
+}
+
+/**
+ * The rows and data columns a selection touches, in the grid's order (what
+ * the popover shows; it always shows the index beside them).
+ */
 export function selectionExtent(sel: GridSel, rows: number[], cols: string[]): { rows: number[]; cols: string[] } {
   return {
-    rows: rows.filter((r) => cols.some((c) => inGridSel(sel, r, c))),
+    rows: rows.filter((r) => [INDEX_COL, ...cols].some((c) => inGridSel(sel, r, c))),
     cols: cols.filter((c) => rows.some((r) => inGridSel(sel, r, c)) || sel.headers.includes(c)),
   };
 }
@@ -171,6 +198,8 @@ export function describeGridSel(sel: GridSel, rows: number[], cols: string[]): s
   switch (sel.kind) {
     case 'cell':
       return `row ${ext.rows[0]}, ${ext.cols[0]}`;
+    case 'index':
+      return `row index · ${rows.length} row${rows.length === 1 ? '' : 's'}`;
     case 'all':
       return `whole table · ${rows.length} row${rows.length === 1 ? '' : 's'} × ${cols.length} column${cols.length === 1 ? '' : 's'}`;
     case 'rows':

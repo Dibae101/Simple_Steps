@@ -219,18 +219,24 @@ later steps is previewed:
 | Shift-click | extends to a block from the last pick |
 | ⌘/Ctrl-click | adds or removes a cell, row or column |
 
+- **REQ-VIS-061:** a column means the **entire column** and a row the
+  **entire row** (owner, 2026-10-22). The grid loads only the first rows of
+  a step, so a column, the whole table or the index opened in the popover
+  fetches every row of the step (up to a cap, saying `first N of M rows`
+  past it). A row already has every column.
 - **REQ-VIS-012:** a selection is drawn as **one box around its perimeter**
-  (a column's box includes its header), in a neutral dark colour that is
+  (a column's box includes its header, a row's its row number), in a neutral dark colour that is
   not a step colour. The active cell's row number and column header are
   shaded.
 - **REQ-VIS-013:** the status line describes the selection in one line
   (`readings · rows 1–2 × city–n · 2×2`).
 - **REQ-VIS-057:** the corner above the row numbers is split on its diagonal
   (top-right to bottom-left). The **upper-left triangle** is the control that
-  selects the whole table; the **lower-right triangle** carries the
-  row-number column's `#` label, above the column it names. *(Built
-  2026-10-21 in `DataOutputGrid`; today the triangle picks the whole table
-  in wiring mode, and selects it everywhere once §6 selection lands.)*
+  selects the whole table; the **lower-right triangle**, labelled `#`,
+  **selects the row index** (the row-number column), boxed like a column
+  and openable in the popover (owner, 2026-10-21). *(Built in
+  `DataOutputGrid`; while a formula is being edited the lower triangle does
+  nothing, since a formula can't reference the index yet.)*
 
 ## 7. Wiring
 
@@ -310,9 +316,11 @@ connects.
 - **REQ-VIS-044:** clicking off the popover closes it. **Dragging the frame
   moves it and pins it**: a pinned popover stays open until its close
   control is used, so several can be compared.
-- **REQ-VIS-045:** the frame carries only small widgets on its border: the
-  header (top), the inputs toggle (left), the outputs toggle (right), and
-  close (a corner).
+- **REQ-VIS-045:** the frame is **very thin** (a hairline), and carries only
+  small, subtle widgets **wrapped on its edge**, never between the frame and
+  the data: the header (a tab on the top edge), the inputs toggle (left),
+  the outputs toggle (right), and minimize/close (a tab on the top-right
+  corner, faint until the frame is hovered) (owner, 2026-10-21).
 
 ### 8.2 Header (top edge): what produced this
 

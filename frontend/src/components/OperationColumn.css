@@ -694,6 +694,27 @@
   outline-offset: -2px;
 }
 
+/* The lower-right triangle: selects the row index (the row numbers). */
+.grid-corner-index {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  clip-path: polygon(100% 0, 100% 100%, 0 100%);
+  cursor: pointer;
+  transition: background 0.1s ease;
+}
+
+.grid-corner-index:hover { background: #dcdcdc; }
+.grid-corner-index[data-state='selected'] { background: #e2e5ea; }
+.grid-corner-index:disabled { cursor: default; background: transparent; }
+.grid-corner-index:focus-visible {
+  outline: 2px solid #1d4ed8;
+  outline-offset: -2px;
+}
+
 .grid-corner-label {
   position: absolute;
   right: 4px;
@@ -766,15 +787,6 @@
   color: #aaa;
   font-style: italic;
   font-size: 0.9rem;
-}
-
-.grid-footer {
-  padding: 2px 6px;
-  background: #f9f9f9;
-  color: #888;
-  font-size: 0.7rem;
-  border-top: 1px solid #eee;
-  text-align: right;
 }
 
 .output-container.grid-wrapper {
@@ -987,6 +999,19 @@
   color: #d0d0d0;
 }
 
+/* The data's size and selection, at the bar's right end. */
+.step-widget-note {
+  margin-left: auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  color: #8a8a8a;
+}
+
 .step-widget-chevron {
   width: 11px;
   font-size: 13px;
@@ -1153,4 +1178,4 @@
 
 .sel-open:hover { background: #1f2937; color: #fff; }
 
-.grid-footer-selection { color: #555; }
+

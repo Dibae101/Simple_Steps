@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { Cell } from '../types/models';
+import { fetchDataMeta, fetchDataView } from '../services/api';
 import { isErrorCell } from '../utils/errorCells';
 import { shortExpression } from '../utils/expression';
 import CellViewer from './CellViewer';
@@ -10,13 +11,18 @@ import './SelectionPopover.css';
 /**
  * The selection popover (spec 014 §8): a thin frame around an enlarged copy
  * of the data a person selected, opened from the control on the selection's
- * border.
+ * border. Its widgets sit on the frame's edge as small tabs (REQ-VIS-045):
+ * what produced the data on the top-left, the window controls on the
+ * top-right; nothing sits between the frame and the data.
  *
  * - Opens centred where it was opened (REQ-VIS-040), kept on screen.
  * - Clicking anywhere else closes it; dragging its frame moves it and pins it,
  *   and a pinned popover stays until its close control (REQ-VIS-044).
  * - The header is the expression that produced the data, short; clicking it
  *   shows the whole expression, plus one state line (REQ-VIS-046/047).
+ * - A column, the whole table or the index means every row of the step, not
+ *   just the rows the grid has loaded: those rows are fetched (up to
+ *   WHOLE_CAP). A row has every column already.
  * - A single image, figure or table cell is the cell viewer, embedded: the
  *   popover owns the window controls, so they aren't doubled.
  *
@@ -49,15 +55,24 @@ export interface SelectionPopoverProps {
   isSelected: (row: number, col: string) => boolean;
   /** The output the cells come from, so a typed cell can show its full view. */
   refId?: string;
+  /** The selection takes whole columns: show every row of the step. */
+  wholeColumns?: boolean;
   onClose: () => void;
 }
 
 /** Popovers stack in the order they were last touched; under pulled-off cells (2100). */
 let topZ = 2050;
 const MARGIN = 8;
+/** Room above the frame for the tabs on its top edge. */
+const TAB_ROOM = 24;
+/** The most rows a whole-column popover fetches. */
+const WHOLE_CAP = 5000;
+
+interface WholeRows { rows: number[]; cells: Record<string, Cell>; total: number }
 
 export default function SelectionPopover({
-  stepName, color = '#888', formula, what, at, rows, cols, cells, isSelected, refId, onClose,
+  stepName, color = '#888', formula, what, at, rows: loadedRows, cols, cells: loadedCells, isSelected: loadedIsSelected,
+  refId, wholeColumns = false, onClose,
 }: SelectionPopoverProps) {
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
@@ -65,6 +80,36 @@ export default function SelectionPopover({
   const [minimized, setMinimized] = useState(false);
   const [full, setFull] = useState(false);
   const [z, setZ] = useState(() => ++topZ);
+
+  // Whole columns: fetch the rows the grid hasn't loaded.
+  const [whole, setWhole] = useState<WholeRows | null>(null);
+  const loadedCount = loadedRows.length;
+  useEffect(() => {
+    if (!wholeColumns || !refId) return;
+    let live = true;
+    (async () => {
+      try {
+        const meta = await fetchDataMeta(refId);
+        if (!live || !(meta.rows > loadedCount)) return;
+        const fetched = await fetchDataView(refId, 0, Math.min(meta.rows, WHOLE_CAP)) as Cell[];
+        if (!live) return;
+        const map: Record<string, Cell> = {};
+        for (const c of fetched) map[`${c.row_id}:${c.column_id}`] = c;
+        const ids = Array.from(new Set(fetched.map((c) => c.row_id))).sort((a, b) => a - b);
+        setWhole({ rows: ids, cells: map, total: meta.rows });
+      } catch {
+        // Keep the loaded rows.
+      }
+    })();
+    return () => { live = false; };
+  }, [wholeColumns, refId, loadedCount]);
+
+  const rows = whole?.rows ?? loadedRows;
+  const cells = whole?.cells ?? loadedCells;
+  const isSelected = whole ? (_row: number, col: string) => cols.includes(col) : loadedIsSelected;
+  const shownWhat = whole
+    ? `${what.split(' · ')[0]} · ${whole.total > rows.length ? `first ${rows.length} of ${whole.total}` : whole.total} rows`
+    : what;
 
   // Centre on where it was opened, kept inside the window.
   useLayoutEffect(() => {
@@ -74,7 +119,7 @@ export default function SelectionPopover({
     const h = el.offsetHeight;
     setPos({
       x: Math.min(Math.max(MARGIN, at.x - w / 2), Math.max(MARGIN, window.innerWidth - w - MARGIN)),
-      y: Math.min(Math.max(MARGIN, at.y - h / 2), Math.max(MARGIN, window.innerHeight - h - MARGIN)),
+      y: Math.min(Math.max(TAB_ROOM, at.y - h / 2), Math.max(TAB_ROOM, window.innerHeight - h - MARGIN)),
     });
   }, [at, pos]);
 
@@ -106,7 +151,7 @@ export default function SelectionPopover({
     setPinned(true);
     setPos({
       x: Math.min(Math.max(0, e.clientX - drag.current.dx), window.innerWidth - 120),
-      y: Math.min(Math.max(0, e.clientY - drag.current.dy), window.innerHeight - 40),
+      y: Math.min(Math.max(TAB_ROOM, e.clientY - drag.current.dy), window.innerHeight - 40),
     });
   };
   const onFramePointerUp = () => { drag.current = null; };
@@ -129,7 +174,7 @@ export default function SelectionPopover({
       className={`sp-frame${pinned ? ' sp-pinned' : ''}${minimized ? ' sp-minimized' : ''}`}
       style={{ left: pos?.x ?? -9999, top: pos?.y ?? -9999, zIndex: z, ['--sp-color' as string]: color }}
       role="dialog"
-      aria-label={`${stepName} · ${what}`}
+      aria-label={`${stepName} · ${shownWhat}`}
       onMouseDown={(e) => { stop(e); setZ(++topZ); }}
       onClick={stop}
       onDoubleClick={stop}
@@ -139,37 +184,36 @@ export default function SelectionPopover({
       onPointerMove={onFramePointerMove}
       onPointerUp={onFramePointerUp}
     >
-      <div className="sp-header">
+      <div className={`sp-header${full ? ' sp-header-full' : ''}`} title={shownWhat}>
         <span className="sp-step">{stepName}</span>
-        <span className="sp-what">{what}</span>
-        <span className="sp-controls">
-          {pinned && <Icon name="pinned" size={13} className="sp-pin" title="Pinned: stays open until closed" />}
+        {short && (
           <button
-            className="sp-control"
-            aria-label={minimized ? 'Restore' : 'Minimize'}
-            title={minimized ? 'Restore' : 'Minimize'}
-            onClick={() => setMinimized((m) => !m)}
+            className="sp-expression"
+            aria-expanded={full}
+            title={full ? 'Show it short' : 'Show the whole expression'}
+            onClick={() => setFull((f) => !f)}
           >
-            <Icon name={minimized ? 'chrome-restore' : 'chrome-minimize'} size={13} aria-hidden aria-label={undefined} />
+            <code>{full ? (formula ?? '').replace(/^=/, '') : short}</code>
           </button>
-          <button className="sp-control" aria-label="Close" title="Close" onClick={onClose}>
-            <Icon name="close" size={13} aria-hidden aria-label={undefined} />
-          </button>
-        </span>
+        )}
+        <span className={`sp-state${failed ? ' sp-state-failed' : ''}`}>{state}</span>
       </div>
+      <span className="sp-controls">
+        {pinned && <Icon name="pinned" size={11} className="sp-pin" title="Pinned: stays open until closed" />}
+        <button
+          className="sp-control"
+          aria-label={minimized ? 'Restore' : 'Minimize'}
+          title={minimized ? 'Restore' : 'Minimize'}
+          onClick={() => setMinimized((m) => !m)}
+        >
+          <Icon name={minimized ? 'chrome-restore' : 'chrome-minimize'} size={11} aria-hidden aria-label={undefined} />
+        </button>
+        <button className="sp-control" aria-label="Close" title="Close" onClick={onClose}>
+          <Icon name="close" size={11} aria-hidden aria-label={undefined} />
+        </button>
+      </span>
       {!minimized && (
         <>
-          {short && (
-            <button
-              className={`sp-expression${full ? ' sp-full' : ''}`}
-              aria-expanded={full}
-              title={full ? 'Show it short' : 'Show the whole expression'}
-              onClick={() => setFull((f) => !f)}
-            >
-              <code>{full ? (formula ?? '').replace(/^=/, '') : short}</code>
-            </button>
-          )}
-          <div className={`sp-state${failed ? ' sp-state-failed' : ''}`}>{state}</div>
           <div className="sp-content">
             {embedded ? (
               <CellViewer refId={refId!} row={rows[0]} column={cols[0]} mode="embedded" onClose={onClose} />

@@ -1,8 +1,9 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { isErrorCell } from '../utils/errorCells';
 import type { GridPick, Selection } from '../utils/selection';
 import {
-  applyGridPick, controlCorner, describeGridSel, inGridSel, selectionEdges, selectionExtent,
+  INDEX_COL, applyGridPick, controlCorner, describeGridSel, inGridSel, selectionEdges, selectionExtent,
+  takesWholeColumns,
 } from '../utils/gridSelection';
 import type { GridSel, GridSelPick } from '../utils/gridSelection';
 import type { GridSpot } from '../utils/stepsStatus';
@@ -73,6 +74,11 @@ interface DataOutputGridProps {
    * bar shows it (context/StepsStatusContext).
    */
   onHoverChange?: (spot: GridSpot | null) => void;
+  /**
+   * The data's size and the selection in one line (`3 rows, 2 columns · row 1`),
+   * whenever it changes — shown on the Data bar, not under the grid.
+   */
+  onNoteChange?: (note: string) => void;
   /** The step's name, colour and formula, for the selection popover's header. */
   stepName?: string;
   stepColor?: string;
@@ -89,6 +95,7 @@ export default function DataOutputGrid({
   stagedCellMode = 'idle',
   refId,
   onHoverChange,
+  onNoteChange,
   stepName = 'step',
   stepColor,
   formula,
@@ -254,8 +261,20 @@ export default function DataOutputGrid({
     else select({ kind: 'all' }, e);
   };
 
+  /** The corner's lower triangle: the index (row numbers). Looking only — a
+   *  formula can't reference the index yet. */
+  const handleIndexClick = (e: React.MouseEvent) => {
+    if (!wiringMode) select({ kind: 'index' }, e);
+  };
+
   /** The pointer is over (row, col), a header when row is -1: is that in the selection? */
-  const noteOver = (row: number, col: string) => setOverSelection(inGridSel(shownSel, row, col));
+  const noteOver = (row: number, ...colsHere: string[]) =>
+    setOverSelection(colsHere.some((col) => inGridSel(shownSel, row, col)));
+  const indexSelected = inGridSel(shownSel, -1, INDEX_COL);
+
+  const note = `${rows.length} row${rows.length !== 1 ? 's' : ''}, ${cols.length} column${cols.length !== 1 ? 's' : ''}`
+    + (shownSel ? ` · ${describeGridSel(shownSel, rows, cols)}` : '');
+  useEffect(() => { onNoteChange?.(note); }, [note, onNoteChange]);
 
   const isColumnSelected = (col: string) =>
     !!highlight && (highlight.kind === 'all' || (highlight.kind === 'columns' && highlight.columns.includes(col)));
@@ -346,7 +365,7 @@ export default function DataOutputGrid({
         {/* Header Row. The corner is split on its diagonal, as in Excel: the
             upper-left triangle selects the whole table, the lower-right one
             labels the row-number column beneath it. */}
-        <div className="grid-header-cell row-index-header grid-corner">
+        <div className="grid-header-cell row-index-header grid-corner" style={outline(-1, INDEX_COL)}>
           <button
             type="button"
             className="grid-corner-select"
@@ -355,10 +374,22 @@ export default function DataOutputGrid({
             data-state={highlight?.kind === 'all' || shownSel?.kind === 'all' ? 'selected' : hoveredCol === '__table__' ? 'hover' : undefined}
             style={wiringMode ? { cursor: 'crosshair' } : undefined}
             onClick={handleCornerClick}
-            onMouseEnter={() => { setHoveredCol('__table__'); onHoverChange?.({ kind: 'table' }); }}
+            onMouseEnter={() => { setHoveredCol('__table__'); noteOver(-1, INDEX_COL); onHoverChange?.({ kind: 'table' }); }}
             onMouseLeave={() => setHoveredCol(null)}
           />
-          <span className="grid-corner-label" aria-hidden="true">#</span>
+          <button
+            type="button"
+            className="grid-corner-index"
+            aria-label="Select the row index"
+            title="Select the row index"
+            data-state={indexSelected ? 'selected' : undefined}
+            disabled={wiringMode}
+            onClick={handleIndexClick}
+            onMouseEnter={() => { noteOver(-1, INDEX_COL); onHoverChange?.({ kind: 'column', column: '#' }); }}
+          >
+            <span className="grid-corner-label" aria-hidden="true">#</span>
+          </button>
+          {openControl(-1, INDEX_COL)}
         </div>
         {cols.map((col) => (
           <div
@@ -394,11 +425,12 @@ export default function DataOutputGrid({
                 transition: 'background 0.1s ease',
               } : {
                 cursor: 'pointer',
-                ...(activeCell?.row === r || (shownSel?.kind === 'rows' && inGridSel(shownSel, r, cols[0]))
+                ...(activeCell?.row === r || indexSelected || (shownSel?.kind === 'rows' && inGridSel(shownSel, r, cols[0]))
                   ? { background: ACTIVE_HEADER_BG, color: '#222' } : {}),
+                ...outline(r, INDEX_COL),
               }}
               onClick={(e) => handleRowClick(r, e)}
-              onMouseEnter={() => { if (wiringMode) setHoveredRow(r); noteOver(r, cols[0]); onHoverChange?.({ kind: 'row', row: r }); }}
+              onMouseEnter={() => { if (wiringMode) setHoveredRow(r); noteOver(r, INDEX_COL, cols[0]); onHoverChange?.({ kind: 'row', row: r }); }}
               onMouseLeave={() => wiringMode && setHoveredRow(null)}
             >
               {r}
@@ -493,11 +525,6 @@ export default function DataOutputGrid({
           </div>
         ))}
       </div>
-      <div className="grid-footer">
-        {rows.length} row{rows.length !== 1 ? 's' : ''}, {cols.length} column
-        {cols.length !== 1 ? 's' : ''}
-        {shownSel && <span className="grid-footer-selection"> · {describeGridSel(shownSel, rows, cols)}</span>}
-      </div>
       {popovers.map((p) => {
         const ext = selectionExtent(p.sel, rows, cols);
         return (
@@ -513,6 +540,7 @@ export default function DataOutputGrid({
             cells={gridData}
             isSelected={(row, col) => inGridSel(p.sel, row, col)}
             refId={refId}
+            wholeColumns={takesWholeColumns(p.sel)}
             onClose={() => setPopovers((ps) => ps.filter((q) => q.id !== p.id))}
           />
         );

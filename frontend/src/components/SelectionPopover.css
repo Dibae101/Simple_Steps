@@ -1,50 +1,105 @@
-/* The selection popover (spec 014 §8): a thin frame, the step's colour as a
-   hairline along its top, the data enlarged inside. */
+/* The selection popover (spec 014 §8): a very thin frame round the data,
+   enlarged. Its widgets are small, quiet tabs wrapped on the frame's top
+   edge — what produced the data on the left, the window controls on the
+   right — so nothing sits between the frame and the data. */
 
 .sp-frame {
   position: fixed;
   display: flex;
   flex-direction: column;
-  min-width: 220px;
+  min-width: 160px;
   max-width: min(760px, calc(100vw - 16px));
-  max-height: min(70vh, calc(100vh - 16px));
+  max-height: min(70vh, calc(100vh - 40px));
+  padding: 2px;              /* a sliver of frame to grab and drag */
   background: #fff;
   color: #222;
-  border: 1px solid rgba(0, 0, 0, 0.22);
-  border-top: 3px solid var(--sp-color, #888);
-  border-radius: 6px;
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(31, 41, 55, 0.45);
+  border-radius: 2px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
   font-size: 13px;
   cursor: grab;              /* the frame drags; the content inside does not */
 }
 
 .sp-frame:active { cursor: grabbing; }
-.sp-frame.sp-pinned { box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22); }
-.sp-frame.sp-minimized { max-height: none; }
+.sp-frame.sp-pinned { border-color: rgba(31, 41, 55, 0.6); }
+.sp-frame.sp-minimized { min-height: 0; padding: 0; box-shadow: none; }
 
+/* Top-left tab: the step, the expression that produced the data, its state. */
 .sp-header {
+  position: absolute;
+  bottom: 100%;
+  left: -1px;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 5px 6px 5px 10px;
-  border-bottom: 1px solid #eee;
+  gap: 6px;
+  max-width: calc(100% - 56px);
+  padding: 1px 6px;
+  background: #fff;
+  border: 1px solid rgba(31, 41, 55, 0.45);
+  border-bottom: none;
+  border-top: 2px solid var(--sp-color, #888);
+  border-radius: 3px 3px 0 0;
+  font-size: 11px;
+  color: #666;
+  white-space: nowrap;
   user-select: none;
 }
 
-.sp-step { font-weight: 700; }
-.sp-what { color: #666; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.sp-controls { margin-left: auto; display: inline-flex; align-items: center; gap: 2px; }
-.sp-pin { color: #777; margin-right: 2px; }
+.sp-header.sp-header-full { max-width: min(560px, calc(100vw - 80px)); white-space: normal; }
+
+.sp-step { font-weight: 700; color: #333; }
+
+.sp-expression {
+  min-width: 0;
+  padding: 0 3px;
+  border: none;
+  border-radius: 2px;
+  background: transparent;
+  color: #444;
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sp-expression:hover { background: #f1f1f1; }
+.sp-header-full .sp-expression { white-space: pre-wrap; word-break: break-word; }
+.sp-expression code { font-family: Menlo, Monaco, Consolas, monospace; font-size: 11px; }
+
+.sp-state { color: #888; }
+.sp-state-failed { color: #b42318; }
+
+/* Top-right tab: pin mark, minimize, close — faint until the frame is hovered. */
+.sp-controls {
+  position: absolute;
+  bottom: 100%;
+  right: -1px;
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  padding: 0 2px;
+  background: #fff;
+  border: 1px solid rgba(31, 41, 55, 0.45);
+  border-bottom: none;
+  border-radius: 3px 3px 0 0;
+  opacity: 0.55;
+  transition: opacity 0.12s ease;
+}
+
+.sp-frame:hover .sp-controls,
+.sp-controls:focus-within { opacity: 1; }
+
+.sp-pin { color: #777; margin: 0 2px; }
 
 .sp-control {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: 16px;
+  height: 16px;
   padding: 0;
   border: none;
-  border-radius: 4px;
+  border-radius: 2px;
   background: transparent;
   color: #555;
   cursor: pointer;
@@ -53,33 +108,10 @@
 .sp-control:hover { background: #eee; color: #111; }
 .sp-control:focus-visible { outline: 2px solid #1d4ed8; outline-offset: 1px; }
 
-.sp-expression {
-  display: block;
-  margin: 6px 10px 0;
-  padding: 3px 6px;
-  border: 1px solid transparent;
-  border-radius: 4px;
-  background: #f6f6f6;
-  color: #333;
-  text-align: left;
-  cursor: pointer;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.sp-expression:hover { border-color: #ddd; }
-.sp-expression.sp-full { white-space: pre-wrap; word-break: break-word; }
-.sp-expression code { font-family: Menlo, Monaco, Consolas, monospace; font-size: 12px; }
-
-.sp-state { margin: 4px 10px 6px; color: #666; font-size: 12px; }
-.sp-state-failed { color: #b42318; }
-
 .sp-content {
   overflow: auto;            /* a big selection scrolls inside its cap */
   min-height: 0;
   cursor: auto;
-  border-top: 1px solid #eee;
 }
 
 .sp-table { border-collapse: collapse; font-size: 14px; }
