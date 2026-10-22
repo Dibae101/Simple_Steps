@@ -15,6 +15,13 @@
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
+
+  /* Stacking layers. Dropdowns and menus sit on top of everything — panels
+     (agent 1000, file editor 1200), floating windows (cell viewer 2000),
+     modals (9000), the execution log (9998). They are also rendered into
+     document.body, so no parent's stacking context or overflow can hide them.
+     Use var(--z-popover) for anything new that drops down or pops over. */
+  --z-popover: 20000;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -56,4 +63,18 @@ button:focus-visible {
     color: rgba(255, 255, 255, 0.92);
     background-color: #121212;
   }
+}
+
+/* Material icons (components/MaterialIcon.tsx): inline SVG that sits on the
+   text line like a glyph. */
+.material-icon {
+  display: inline-block;
+  flex-shrink: 0;
+  vertical-align: -0.15em;
+}
+.material-icon--spin {
+  animation: material-icon-spin 0.9s linear infinite;
+}
+@keyframes material-icon-spin {
+  to { transform: rotate(360deg); }
 }

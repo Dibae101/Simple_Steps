@@ -48,6 +48,13 @@ export interface Step {
   warnings?: string[];
   /** Rows of the last run that failed and nothing caught; they stop Run All (REQ-RUN-004). */
   uncaughtFailed?: number;
+  /**
+   * The step's colour, chosen in its Settings (a CSS colour, e.g. `#22aa88`).
+   * Unset = the palette colour for its position. Saved in the step's `meta`.
+   */
+  step_color?: string;
+  /** Markdown notes on what the step is for; shown in Analytics. Saved in `meta`. */
+  notes?: string;
 }
 
 export interface Workflow {

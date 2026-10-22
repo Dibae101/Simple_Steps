@@ -3,8 +3,10 @@
  *
  * Every page of docs/usage_docs/, built into the bundle at build time, so the
  * installed app needs no docs on disk and the panel can never list a page
- * that no longer exists. The README comes first, as "Start here"; each page
- * is titled by its first heading. A link to another page opens it here.
+ * that no longer exists. The README comes first, as "Start here"; then the
+ * User guide, which is what this panel is for, open and first; then the
+ * Developer guide, folded away until asked for. Each page is titled by its
+ * first heading. A link to another page opens it here.
  *
  * Tables are drawn here rather than by a Markdown plugin (react-markdown
  * alone doesn't do GitHub tables, and the docs use them for reference);
@@ -14,10 +16,11 @@
 import React, { useMemo, useRef, useState } from 'react';
 import Markdown, { type Components } from 'react-markdown';
 import Icon from './Icon';
-import { docPages, splitTables, type DocPage } from '../utils/docs';
+import { docPages, resolveDocLink, splitTables, type DocPage } from '../utils/docs';
 
 export default function DocsPanel({ pages = docPages() }: { pages?: DocPage[] }) {
   const [active, setActive] = useState<DocPage | null>(null);
+  const [developerOpen, setDeveloperOpen] = useState(false);
   const reader = useRef<HTMLDivElement>(null);
   const byFile = useMemo(() => new Map(pages.map((p) => [p.file, p])), [pages]);
 
@@ -37,7 +40,9 @@ export default function DocsPanel({ pages = docPages() }: { pages?: DocPage[] })
     a: ({ href = '', children }) => {
       if (/^https?:/.test(href)) return <a href={href} target="_blank" rel="noreferrer">{children}</a>;
       const [file, anchor] = href.split('#');
-      const page = byFile.get(file.replace(/^\.\//, ''));
+      // Relative to the page it's on: `../developer/x.md` from `user/y.md`.
+      const target = file && active ? resolveDocLink(active.file, file) : null;
+      const page = target ? byFile.get(target) : undefined;
       if (page) {
         return (
           <a href={`#${anchor ?? ''}`} onClick={(e) => { e.preventDefault(); open(page, anchor); }}>{children}</a>
@@ -81,19 +86,47 @@ export default function DocsPanel({ pages = docPages() }: { pages?: DocPage[] })
     );
   }
 
+  const row = (page: DocPage) => (
+    <button type="button" key={page.file} className="docs-link-row" onClick={() => open(page)} title={page.summary}>
+      <Icon name="book" size={14} className="docs-link-icon" />
+      <span className="docs-link-text">
+        <span className="docs-link-title">{page.file === 'README.md' ? `Start here — ${page.title}` : page.title}</span>
+        {page.summary && <span className="docs-link-summary">{page.summary}</span>}
+      </span>
+    </button>
+  );
+  const start = pages.filter((p) => p.section === 'start');
+  const user = pages.filter((p) => p.section === 'user');
+  const developer = pages.filter((p) => p.section === 'developer');
+
   return (
     <div className="project-explorer docs-panel">
       <div className="docs-list">
         {pages.length === 0 && <div className="docs-empty">No docs were bundled with this build.</div>}
-        {pages.map((page) => (
-          <button type="button" key={page.file} className="docs-link-row" onClick={() => open(page)} title={page.summary}>
-            <Icon name="book" size={14} className="docs-link-icon" />
-            <span className="docs-link-text">
-              <span className="docs-link-title">{page.file === 'README.md' ? `Start here — ${page.title}` : page.title}</span>
-              {page.summary && <span className="docs-link-summary">{page.summary}</span>}
-            </span>
-          </button>
-        ))}
+        {start.map(row)}
+
+        {user.length > 0 && (
+          <section className="docs-section docs-section--user" aria-label="User guide">
+            <h3 className="docs-section-title">User guide</h3>
+            {user.map(row)}
+          </section>
+        )}
+
+        {developer.length > 0 && (
+          <section className="docs-section docs-section--developer" aria-label="Developer guide">
+            <button
+              type="button"
+              className="docs-section-toggle"
+              aria-expanded={developerOpen}
+              onClick={() => setDeveloperOpen((o) => !o)}
+            >
+              <Icon name={developerOpen ? 'chevron-down' : 'chevron-right'} size={12} />
+              Developer guide
+              <span className="docs-section-count">{developer.length}</span>
+            </button>
+            {developerOpen && developer.map(row)}
+          </section>
+        )}
       </div>
     </div>
   );

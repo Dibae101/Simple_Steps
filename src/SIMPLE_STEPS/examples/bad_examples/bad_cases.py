@@ -46,6 +46,7 @@ SOURCES = [
     ("gappy", """to_rows[mod.source()](data='{"n": [1, null, 3]}')"""),
     ("people", """to_rows[mod.source()](data='{"first": ["Ada", "Bo"]}')"""),
     ("scored", 'double_n[mod.map()](wf["readings"])'),
+    ("doubled", 'double_n[mod.map(name="n")](wf["readings"])'),
 ]
 
 #: Extra good steps only the corrected workflow needs, before the cases.
@@ -116,10 +117,16 @@ CASES = [
          "greet reads a name column by name; people calls it first. "
          "Rename it first (people_named).",
          'greet[mod.map()](wf["people_named"])'),
-    Case("output_replaces_input", "Columns and types",
-         'double_n[mod.map(name="n")](wf["readings"])', "refused", "map writes 'n', which readings already has; choose another name (name=…), or say replace=True",
-         "Writing the output to n would silently replace the input's n.",
-         'double_n[mod.map(name="doubled")](wf["readings"])'),
+    Case("reads_a_result", "Columns and types",
+         'double_n[mod.map()](wf["scored"])', "refused", "double_n() needs 'n', which 'scored' does not have (it has value)",
+         "A map step is only its result: scored holds value, not the readings' n. "
+         "Read n from readings, or zip_ the two to have both.",
+         'double_n[mod.map()](wf["readings"])'),
+    Case("zip_shares_a_column", "Columns and types",
+         'zip_(wf["readings"], wf["doubled"])', "refused", "zip_: 'n' is in both 'readings' and 'doubled'; rename one",
+         "doubled names its result n, like the readings' own n; side by side, one "
+         "would have to win. Give the result its own name.",
+         'zip_(wf["readings"], wf["scored"])'),
     Case("nullable_column", "Columns and types",
          'add_one[mod.map()](wf["gappy"])', "refused", 'gappy.n can be None, but add_one() takes n: int; accept int | None, or filter the Nones first',
          "gappy.n has a gap, but add_one takes n: int. Use a tool that "
@@ -136,11 +143,6 @@ CASES = [
          'label[mod.map()](wf["readings"], city="Paris")', "warns", "city='Paris' overrides the 'city' column of 'readings' for every row",
          "city=\"Paris\" is used for every row, so the city column is ignored.",
          'label[mod.map()](wf["readings"])'),
-    Case("output_overwrites_value", "Runs, but warns",
-         'double_n[mod.map()](wf["scored"])', "warns", "map writes 'value' over the 'value' column 'scored' already has",
-         "scored already has a value column; a second map's default output "
-         "replaces it.",
-         'double_n[mod.map(name="doubled_again")](wf["scored"])'),
 
     # ── runs, but rows fail ──────────────────────────────────────────────
     Case("uncaught_failure", "Runs, but rows fail",

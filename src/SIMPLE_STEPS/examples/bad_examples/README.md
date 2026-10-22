@@ -53,7 +53,8 @@ add an entry there and run that.
 |---|---|---|---|---|
 | `missing_column` | `identity[mod.select(columns=["score"])](wf["readings"])` | **refused**: select names 'score', which the input does not have (it has city, n) | readings has no score column. | `identity[mod.select(columns=["n"])](wf["readings"])` |
 | `parameter_not_a_column` | `greet[mod.map()](wf["people"])` | **refused**: greet() needs 'name', which 'people' does not have (it has first) | greet reads a name column by name; people calls it first. Rename it first (people_named). | `greet[mod.map()](wf["people_named"])` |
-| `output_replaces_input` | `double_n[mod.map(name="n")](wf["readings"])` | **refused**: map writes 'n', which readings already has; choose another name (name=…), or say replace=True | Writing the output to n would silently replace the input's n. | `double_n[mod.map(name="doubled")](wf["readings"])` |
+| `reads_a_result` | `double_n[mod.map()](wf["scored"])` | **refused**: double_n() needs 'n', which 'scored' does not have (it has value) | A map step is only its result: scored holds value, not the readings' n. Read n from readings, or zip_ the two to have both. | `double_n[mod.map()](wf["readings"])` |
+| `zip_shares_a_column` | `zip_(wf["readings"], wf["doubled"])` | **refused**: zip_: 'n' is in both 'readings' and 'doubled'; rename one | doubled names its result n, like the readings' own n; side by side, one would have to win. Give the result its own name. | `zip_(wf["readings"], wf["scored"])` |
 | `nullable_column` | `add_one[mod.map()](wf["gappy"])` | **refused**: gappy.n can be None, but add_one() takes n: int; accept int \| None, or filter the Nones first | gappy.n has a gap, but add_one takes n: int. Use a tool that accepts int \| None. | `add_one_or_zero[mod.map()](wf["gappy"])` |
 | `table_returns_text` | `describe_text[mod.table()](wf["readings"])` | **rows fail**: table expects a DataFrame back, got str | mod.table() makes the tool's DataFrame the step's grid; this tool returns a sentence. | `describe_rows[mod.table()](wf["readings"])` |
 
@@ -62,7 +63,6 @@ add an entry there and run that.
 | step | written wrong | what happens | why | written right |
 |---|---|---|---|---|
 | `argument_hides_column` | `label[mod.map()](wf["readings"], city="Paris")` | **warns**: city='Paris' overrides the 'city' column of 'readings' for every row | city="Paris" is used for every row, so the city column is ignored. | `label[mod.map()](wf["readings"])` |
-| `output_overwrites_value` | `double_n[mod.map()](wf["scored"])` | **warns**: map writes 'value' over the 'value' column 'scored' already has | scored already has a value column; a second map's default output replaces it. | `double_n[mod.map(name="doubled_again")](wf["scored"])` |
 
 ## Runs, but rows fail
 

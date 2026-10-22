@@ -40,10 +40,15 @@ def bar_figure(x, y, title, column="value"):
     return check
 
 
-def images(size=16):
-    """Every swatch is a size×size RGB uint8 image, redder as n grows."""
+def images(ns, size=16):
+    """Every swatch is a size×size RGB uint8 image, redder as n grows.
+
+    A map step is only its results, so the swatches carry no ``n``: *ns* is
+    the readings' ``n``, row for row."""
     def check(data, metrics):
-        for n, image in zip(data["n"], data["swatch"]):
+        if len(data["swatch"]) != len(ns):
+            return f"{len(data['swatch'])} swatches, want {len(ns)}"
+        for n, image in zip(ns, data["swatch"]):
             if not (isinstance(image, np.ndarray) and image.shape == (size, size, 3) and image.dtype == np.uint8):
                 return f"not a {size}×{size} RGB image: {type(image).__name__}"
             if image[0, 0, 0] != min(255, 60 * n):
@@ -53,7 +58,7 @@ def images(size=16):
 
 
 example.check("plotly_charts", "rich-cells", twin=pipeline.build_rich_cells, expect={
-    "swatches": images(),
+    "swatches": images(ns=[1, 2, 3, 2]),
     # brightness reads the real array: a swatch's mean is (60·n + 0 + 128) / 3
     "bright": {"brightness": [62.67, 82.67, 102.67, 82.67]},
     "profiles": lambda data, metrics: all(list(t.columns) == ["city", "n", "double"] for t in data["profile"])

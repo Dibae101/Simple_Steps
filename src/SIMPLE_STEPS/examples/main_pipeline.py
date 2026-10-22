@@ -9,7 +9,7 @@ one Python line per saved step, using tools from all three sub-examples.
 from __future__ import annotations
 
 from simple_steps_core import grid
-from simple_steps_core.grid import mod, op, res
+from simple_steps_core.grid import mod, op, res, zip_
 
 from SIMPLE_STEPS.operations import to_rows
 
@@ -30,12 +30,14 @@ def build_all_examples() -> grid.Workflow:
     wf["readings"] = to_rows[mod.source()](data='{"city": ["SF", "NYC", "LA", "SF"], "n": [1, 4, 2, 3]}')
 
     # basic: a map, then a filter
-    wf["scored"] = scale[mod.map(name="score")](wf["readings"])
+    # a map step is only its results; zip_ puts the readings beside them
+    wf["score"] = scale[mod.map(name="score")](wf["readings"])
+    wf["scored"] = zip_(wf["readings"], wf["score"])
     wf["big"] = is_big[mod.filter()](wf["scored"])
 
     # dummy_llm: a database lookup, then a model's summary, per row
     wf["regions"] = enrich[mod.map(name="region")](wf["big"], db=res["db"])
-    wf["texts"] = identity[mod.rename(columns={"city": "text"})](wf["regions"])
+    wf["texts"] = identity[mod.rename(columns={"city": "text"})](wf["big"])
     wf["summaries"] = summarize[mod.map(name="summary")](wf["texts"], llm=res["llm"])
 
     # basic again: a reducer over the filtered rows

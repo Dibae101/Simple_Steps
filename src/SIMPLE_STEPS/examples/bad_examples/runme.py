@@ -45,7 +45,8 @@ example.check("bad_examples", "corrected", twin=pipeline.build_corrected, strict
     "nullable_column": {"value": [2, 0, 4]},
     "table_returns_text": {"column": ["city", "n"], "non_null": [3, 3]},
     "argument_hides_column": {"value": ["city of SF", "city of NYC", "city of LA"]},
-    "output_overwrites_value": {"value": [2, 0, 4], "doubled_again": [2, 0, 4]},
+    "reads_a_result": {"value": [2, 0, 4]},
+    "zip_shares_a_column": {"n": [1, 0, 2], "value": [2, 0, 4]},
     # NYC's n is 0: 1/0 raises, and try_except(default=0.0) fills it in
     "uncaught_failure": {"value": [1.0, 0.0, 0.5]},
 })

@@ -43,6 +43,13 @@
       }
     },
     {
+      "name": "doubled",
+      "expression": "double_n[mod.map(name=\"n\")](wf[\"readings\"])",
+      "meta": {
+        "label": "doubled"
+      }
+    },
+    {
       "name": "people_named",
       "expression": "identity[mod.rename(columns={\"first\": \"name\"})](wf[\"people\"])",
       "meta": {
@@ -148,10 +155,17 @@
       }
     },
     {
-      "name": "output_replaces_input",
-      "expression": "double_n[mod.map(name=\"doubled\")](wf[\"readings\"])",
+      "name": "reads_a_result",
+      "expression": "double_n[mod.map()](wf[\"readings\"])",
       "meta": {
-        "label": "output_replaces_input"
+        "label": "reads_a_result"
+      }
+    },
+    {
+      "name": "zip_shares_a_column",
+      "expression": "zip_(wf[\"readings\"], wf[\"scored\"])",
+      "meta": {
+        "label": "zip_shares_a_column"
       }
     },
     {
@@ -173,13 +187,6 @@
       "expression": "label[mod.map()](wf[\"readings\"])",
       "meta": {
         "label": "argument_hides_column"
-      }
-    },
-    {
-      "name": "output_overwrites_value",
-      "expression": "double_n[mod.map(name=\"doubled_again\")](wf[\"scored\"])",
-      "meta": {
-        "label": "output_overwrites_value"
       }
     },
     {

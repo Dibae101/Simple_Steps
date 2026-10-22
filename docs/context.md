@@ -140,6 +140,12 @@ time.
   parameters currently have none.
 - Built-in tool groups are namespace-only `ResourceSpec`s, following core's own
   `orchestration` precedent. The word "pack" is retired.
+- **Change tests only when absolutely necessary**: when a test asserts
+  behaviour that has deliberately changed, never to make a failure go away.
+- **Key core-driven behaviour changes are confirmed by the owner before they
+  land**, one small piece at a time (what changed in core, what it means for
+  users, the exact edit). Record what was confirmed in the dev plan
+  (e.g. `docs/dev_plan/124` → Progress).
 
 ## Known red
 - `tests/test_tabular_selection.py::test_select_cell` fails with `KeyError: 0` —

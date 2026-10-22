@@ -1,0 +1,26 @@
+/* The ⌃/⌄ pair on the steps footer and the console title bar. Builds on
+   .log-collapse-btn (ExecutionLog.css): dim, white on hover. */
+.bar-chevrons {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+.bar-chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border-radius: 3px;
+}
+.bar-chevron:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+}
+/* The move that's already made: still there, so nothing shifts, but inert. */
+.bar-chevron:disabled,
+.bar-chevron:disabled:hover {
+  color: #484848;
+  cursor: default;
+  background: transparent;
+}

@@ -172,8 +172,9 @@ def run_grid_step(
             value = returned.get("value")
             return save_raw_value(value, session_id=session_id), _step_result_metrics(value)
 
+    # Keep core's row ids: they link this step's rows to the rows it read
+    # (core 009 §2), so a later zip_ pairs by id rather than by position.
     frame = _restore_bound_columns(output.data, plan.renames, grid.payload_column(output))
-    frame = frame.reset_index(drop=True)
     out_ref = save_dataframe(frame, session_id=session_id, store_mode=result_store)
     return out_ref, {"rows": len(frame), "columns": [str(c) for c in frame.columns],
                      **_engine_metrics(operation, step, output)}
@@ -242,18 +243,12 @@ def run_formula(formula: str, load: Callable[[str], Any],
     _bind_positional_resources(compiled, fn, types)
     inferred = None
     if compiled.needs_inference:
-        # tool(wf["x"], …): infer the verb from the tool, with the input's data
-        # loaded, and write it into the operation. tool[mod.auto()](…) is
-        # core's own: it stays `auto` and core picks the verb each run.
+        # tool(wf["x"], …) is core's implicit auto (core 009 decision 6): it
+        # saves `mod.auto()`, and core picks the verb from the data at each
+        # run (reported in output.meta["auto"]). With no input it is a source.
         if fn is None:
             raise GridStepError(f"no tool named '{compiled.tool_id}'")
-        if compiled.input is None:
-            inferred = "source"
-        else:
-            literals = {k: v for k, v in compiled.arguments.items()
-                        if not (isinstance(v, dict) and set(v) == {"$ref"})}
-            inferred, _why = grid.infer_verb(getattr(fn, "fn", fn),
-                                             wf.step(compiled.input).output, literals)
+        inferred = "source" if compiled.input is None else "auto"
     bound_type = types[compiled.bound_to].__name__ if compiled.bound_to in types else None
     operation = compiled.operation(inferred, bound_type)
 
@@ -368,7 +363,7 @@ def run_canonical_step(formula: str, step_map: Dict[str, str],
     if _verb_of(operation) == "source" and len(output.failed):
         # One call, so one unit: if it failed there is no output to show.
         raise GridStepError(str(output.failed.iloc[0].get("error", "the tool failed")))
-    frame = output.data.reset_index(drop=True)
+    frame = output.data          # with its row ids (see run_grid_step)
     out_ref = save_dataframe(frame, session_id=session_id, store_mode=result_store)
     return out_ref, {"rows": len(frame), "columns": [str(c) for c in frame.columns],
                      **_engine_metrics(operation, step, output)}
@@ -811,10 +806,9 @@ def _restore_bound_columns(frame: pd.DataFrame, renames: Dict[str, str],
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _engine_metrics(operation: dict, step, output) -> dict:
-    """What core adds to a run's metrics: the operation it ran, the ledger,
-    and its warnings (spec 009)."""
-    from .core_bridge import uncaught_failed
-    ledger = output.ledger
+    """What core adds to a run's metrics: the operation it ran, the state of
+    each row, and its warnings (spec 009)."""
+    row_states = output.row_states
     failed = output.failed
     errors = [{"unit": str(unit), "error": str(row.get("error", ""))}
               for unit, row in failed.head(5).iterrows()]
@@ -826,15 +820,16 @@ def _engine_metrics(operation: dict, step, output) -> dict:
         "verb": verb,
         "operation": json.loads(json.dumps(operation, default=str)),
         "describe": step.describe(),
-        "units": len(ledger),
+        "units": len(row_states),
         "failed": int(len(failed)),
         # Failed rows that stop Run All: not blocked upstream, not caught by
         # mod.try_except (REQ-RUN-003).
-        "uncaught_failed": uncaught_failed(output),
+        "uncaught_failed": len(output.uncaught),
         # Valid but probably not meant: an argument overriding a column, an
         # output replacing one (REQ-RUN-001).
         "warnings": [str(w) for w in (getattr(step, "warnings", None) or ())],
-        "status_counts": {str(k): int(v) for k, v in ledger["status"].value_counts().items()},
+        # One count per row state core uses (known, failed, blocked, …).
+        "status_counts": {str(k): int(v) for k, v in row_states.value_counts().items() if v},
         "errors": errors,
         # Where each failed unit's error belongs in the output, so the grid
         # can show it in the cell itself: {row position: error}, for units

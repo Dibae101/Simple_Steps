@@ -370,6 +370,11 @@ export interface StepConfig {
     config: Record<string, unknown>;
     /** Canonical formula string — the single source of truth for what this step executes. */
     formula?: string;
+    /**
+     * Free-form step metadata, saved as-is (the backend's StepConfig.meta).
+     * The UI keeps `step_color` and `notes` here; the backend adds `label`.
+     */
+    meta?: { step_color?: string; notes?: string; [key: string]: unknown };
 }
 
 /** The pipeline definition written to disk — no runtime data. */
@@ -563,14 +568,44 @@ export async function declareResource(
     return body;
 }
 
-export async function savePipeline(projectId: string, pipeline: PipelineFile): Promise<PipelineFile> {
+/** A create-only save hit a workflow file that already exists (HTTP 409). */
+export class WorkflowExistsError extends Error {
+    readonly projectId: string;
+    readonly pipelineId: string;
+    constructor(projectId: string, pipelineId: string, message?: string) {
+        super(message ?? `A workflow named "${pipelineId}" already exists in project "${projectId}".`);
+        this.name = 'WorkflowExistsError';
+        this.projectId = projectId;
+        this.pipelineId = pipelineId;
+    }
+}
+
+/**
+ * Save a workflow. `overwrite: false` makes it create-only: an existing file
+ * with the same name rejects with `WorkflowExistsError` instead of being
+ * replaced. The returned `id` is the file stem the backend wrote to.
+ */
+export async function savePipeline(
+    projectId: string,
+    pipeline: PipelineFile,
+    { overwrite = true }: { overwrite?: boolean } = {},
+): Promise<PipelineFile> {
     const p = encodeURIComponent(projectId);
-    const r = await fetch(`${API_BASE}/projects/${p}/pipelines`, {
+    const r = await fetch(`${API_BASE}/projects/${p}/pipelines?overwrite=${overwrite}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(pipeline),
     });
-    if (!r.ok) throw new Error('Failed to save pipeline');
+    if (r.status === 409) {
+        const detail = (await r.json().catch(() => ({}))).detail ?? {};
+        throw new WorkflowExistsError(
+            detail.project_id ?? projectId, detail.pipeline_id ?? pipeline.id, detail.message,
+        );
+    }
+    if (!r.ok) {
+        const body = await r.json().catch(() => ({}));
+        throw new Error(typeof body.detail === 'string' ? body.detail : 'Failed to save pipeline');
+    }
     return r.json();
 }
 

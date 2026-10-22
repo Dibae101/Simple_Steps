@@ -18,11 +18,15 @@ import Icon from './Icon';
 import type { ActivityView } from './ActivityBar';
 import type { Workflow } from '../types/models';
 import { initialWorkflow } from '../mocks/initialData';
+import { nextUntitledName } from '../utils/workflowNames';
 import { StepWiringProvider } from '../context/StepWiringContext';
+import { StepsStatusProvider } from '../context/StepsStatusContext';
+import StepsStatusText from './StepsStatusText';
 import ResourcesMenu from './ResourcesMenu';
+import BarChevrons from './BarChevrons';
 import WorkflowOverview from './WorkflowOverview';
 import { useConnection } from '../hooks/useConnection';
-import { fetchWorkspaceInfo, openWorkspace, type ResourceDeclaration, type WorkspaceInfo } from '../services/api';
+import { fetchWorkspaceInfo, openWorkspace, WorkflowExistsError, type ResourceDeclaration, type WorkspaceInfo } from '../services/api';
 import './MainLayout.css';
 
 // ── Layout constants ───────────────────────────────────────────────────────
@@ -39,10 +43,24 @@ const DEFAULT_RIGHT_SIDEBAR_WIDTH = 300;
 const HEADER_COLLAPSED_HEIGHT = 66;
 const HEADER_EXPANDED_HEIGHT = 142;
 const SIDEBAR_SNAP_THRESHOLD = 80; // dragging below this pixel width collapses the pane
+// The console's floor while the steps auto-fit: tall steps stop here rather
+// than squeezing the console to a sliver.
 const DEFAULT_LOG_HEIGHT = 220;
-// The log's header is 36px; collapsing clamps the pane to exactly that, so the
-// expander leaves its title bar docked and nothing else.
-const LOG_HEADER_HEIGHT = 36;
+// The log's header (title bar) — all a collapsed console shows: 36px plus its
+// 1px bottom border (.execution-log-header). Measured 37 in the browser; at 36
+// a maximized step viewer pushed the title bar 1px past the bottom.
+const LOG_HEADER_HEIGHT = 37;
+// The step viewer's footer (.steps-footer): the bottom bar of the steps, and
+// the handle between them and the console. VS Code style: it sits under the
+// tallest step (auto-fit) until dragged, then stays where it was put;
+// double-click returns it to auto-fit. On release either side snaps shut below
+// its threshold, like the sidebars. The steps and the console collapse
+// independently — space neither fills shows the canvas background.
+const STEPS_FOOTER_HEIGHT = 20;
+const STEPS_SNAP_THRESHOLD = 80;
+const LOG_SNAP_THRESHOLD = 80; // of console body, below its title bar
+// Room under the tallest step, so its border doesn't touch the footer.
+const STEPS_FIT_PADDING = 4;
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -52,6 +70,9 @@ interface OpenTab extends WorkflowTab {
   pipelineId?: string;
   workflow: Workflow;
 }
+
+/** One tab per workflow file: the key every open/save path agrees on. */
+const pipelineTabKey = (projectId: string, pipelineId: string) => `${projectId}::${pipelineId}`;
 
 interface DetachedWindow {
   id: string;          // unique window id (not step id — same step can detach multiple times)
@@ -67,6 +88,10 @@ export default function MainLayout() {
   // The log is a bottom pane by default and can be popped out into a window.
   const [logMode, setLogMode] = useState<LogMode>('docked');
   const [logCollapsed, setLogCollapsed] = useState(false);
+  // Steps maximized: their footer as low as it goes — on the console's title
+  // bar, or at the bottom of the page with the console closed. Anything that
+  // expands the console ends it, so the console has room.
+  const [stepsMaximized, setStepsMaximized] = useState(false);
   const [isFileEditorOpen, setIsFileEditorOpen] = useState(false);
 
   // Pane visibility — Allotment handles the actual width animation via `visible`.
@@ -76,16 +101,10 @@ export default function MainLayout() {
   // Live right-pane width so a popped-out ExecutionLog clears the chat pane.
   const [rightPaneWidth, setRightPaneWidth] = useState(DEFAULT_RIGHT_SIDEBAR_WIDTH);
 
-  // The centre column's vertical split (header / canvas / log). Allotment only
-  // reads minSize and maxSize when a pane is first created, so collapsing the
-  // log has to go through the imperative handle rather than a prop change.
+  // The centre column's vertical split: header over body. The body (steps,
+  // bar, console) is laid out by hand below — Allotment needs its panes to sum
+  // to the full height, which would rule out showing background between them.
   const centerSplitRef = useRef<AllotmentHandle>(null);
-  const centerSizes = useRef<number[]>([]);
-  // Height to restore when the log is expanded again.
-  const preCollapseLogHeight = useRef<number>(DEFAULT_LOG_HEIGHT);
-  // The header's height as the user last left it, captured immediately before
-  // a log toggle so the toggle can put it back. See pinHeaderAfterPaneChange.
-  const headerHeight = useRef<number>(HEADER_EXPANDED_HEIGHT);
 
   const {
     workflow,
@@ -228,7 +247,11 @@ export default function MainLayout() {
     if (activeTab?.projectId && activeTab?.pipelineId) {
       try {
         suppressModified.current = true;
-        await saveWorkflow(activeTab.projectId, activeTab.workflow.name || activeTab.pipelineId);
+        // Write back to the file this tab came from, even after a rename —
+        // deriving the file from the (new) name would fork it into a second file.
+        await saveWorkflow(activeTab.projectId, activeTab.workflow.name || activeTab.pipelineId, {
+          pipelineId: activeTab.pipelineId,
+        });
         setOpenTabs(prev => prev.map(t => t.isActive ? { ...t, isModified: false } : t));
       } catch (e) {
         console.error('Save failed', e);
@@ -251,13 +274,28 @@ export default function MainLayout() {
   const handleModalSave = useCallback(async (projectId: string, pipelineName: string, projectDisplayName?: string) => {
     suppressModified.current = true;
     try {
-      const saved = await saveWorkflow(projectId, pipelineName);
-      // saved.id is the slug derived from pipelineName, matching the filename on disk
-      setOpenTabs(prev => prev.map(t => {
+      // Create-only first, so an existing workflow of the same name is never
+      // replaced silently. Re-saving the tab's own file is not a conflict.
+      let saved;
+      try {
+        saved = await saveWorkflow(projectId, pipelineName, { overwrite: false });
+      } catch (err) {
+        if (!(err instanceof WorkflowExistsError)) throw err;
+        const ownFile = activeTab?.projectId === err.projectId && activeTab?.pipelineId === err.pipelineId;
+        if (!ownFile && !window.confirm(`${err.message}\n\nReplace it?`)) {
+          throw new Error(`"${pipelineName}" already exists in this project — choose a different name.`);
+        }
+        saved = await saveWorkflow(projectId, pipelineName, { pipelineId: err.pipelineId });
+      }
+      // saved.id is the file stem the backend wrote to — the same id the
+      // sidebar and file tree open it by. Any other tab on that file now shows
+      // replaced content, so it is dropped: one file never has two tabs.
+      const key = pipelineTabKey(projectId, saved.id);
+      setOpenTabs(prev => prev.filter(t => t.isActive || t.id !== key).map(t => {
         if (!t.isActive) return t;
         return {
           ...t,
-          id: `${projectId}::${saved.id}`,
+          id: key,
           title: pipelineName,
           projectId,
           projectDisplayName: projectDisplayName ?? projectId,
@@ -270,7 +308,7 @@ export default function MainLayout() {
     } finally {
       suppressModified.current = false;
     }
-  }, [saveWorkflow]);
+  }, [activeTab, saveWorkflow]);
 
   const handleRename = useCallback((newName: string) => {
     setOpenTabs(prev => prev.map(t => {
@@ -294,16 +332,26 @@ export default function MainLayout() {
   }, [handleSave, handleSaveAs]);
 
   /** Open or focus a pipeline tab, loading the workflow into the hook. */
+  // Keys of workflows still being fetched: a second click while the first is
+  // loading must not open a second tab on the same file.
+  const openingTabs = useRef(new Set<string>());
+  const openTabsRef = useRef(openTabs);
+  openTabsRef.current = openTabs;
+
   const openPipelineTab = useCallback(async (projectId: string, pipelineId: string) => {
-    const tabKey = `${projectId}::${pipelineId}`;
-    const existing = openTabs.find(t => t.id === tabKey);
-    if (existing) {
-      setOpenTabs(prev => prev.map(t => ({ ...t, isActive: t.id === tabKey })));
+    const focusTab = (key: string): boolean => {
+      const existing = openTabsRef.current.find(t => t.id === key);
+      if (!existing) return false;
+      setOpenTabs(prev => prev.map(t => ({ ...t, isActive: t.id === key })));
       suppressModified.current = true;
       loadWorkflowObject(existing.workflow);
       setTimeout(() => { suppressModified.current = false; }, 0);
-      return;
-    }
+      return true;
+    };
+
+    const requestedKey = pipelineTabKey(projectId, pipelineId);
+    if (focusTab(requestedKey) || openingTabs.current.has(requestedKey)) return;
+    openingTabs.current.add(requestedKey);
     let wf: Workflow;
     try {
       wf = await fetchWorkflow(projectId, pipelineId);
@@ -312,7 +360,14 @@ export default function MainLayout() {
       console.error('Failed to open pipeline', { projectId, pipelineId, err });
       window.alert(`Failed to open pipeline "${pipelineId}": ${message}`);
       return;
+    } finally {
+      openingTabs.current.delete(requestedKey);
     }
+    // The backend reports the file stem as the id, so the same file reached by
+    // another spelling (file tree vs. sidebar) still lands on one tab.
+    pipelineId = wf.id || pipelineId;
+    const tabKey = pipelineTabKey(projectId, pipelineId);
+    if (focusTab(tabKey)) return;
     const newTab: OpenTab = {
       id: tabKey,
       title: wf.name,
@@ -329,7 +384,7 @@ export default function MainLayout() {
     suppressModified.current = true;
     loadWorkflowObject(wf);
     setTimeout(() => { suppressModified.current = false; }, 0);
-  }, [openTabs, fetchWorkflow, loadWorkflowObject]);
+  }, [fetchWorkflow, loadWorkflowObject]);
 
   // NOTE: openWorkflowObjectTab is kept for future use (e.g. opening demo workflows).
   // @ts-expect-error TS6133 — reserved for future use
@@ -384,15 +439,18 @@ export default function MainLayout() {
   }, [openTabs, loadWorkflowObject]);
 
   const handleNewTab = useCallback(() => {
+    // VS Code style: each new workflow gets the lowest free Untitled-N, so two
+    // new tabs never share a name (and so never default to the same file).
+    const name = nextUntitledName(openTabsRef.current.map(t => t.title));
     const blank: Workflow = {
       id: `new-${Date.now()}`,
-      name: 'Untitled',
+      name,
       created_at: new Date().toISOString(),
       steps: [],
     };
     const newTab: OpenTab = {
       id: blank.id,
-      title: 'Untitled',
+      title: name,
       isActive: true,
       workflow: blank,
     };
@@ -460,99 +518,200 @@ export default function MainLayout() {
   }, []);
 
   // ── Execution-log placement ───────────────────────────────────────────
-  const handleCenterSizes = useCallback((sizes: number[]) => {
-    centerSizes.current = sizes;
-  }, []);
-
-  /** Snapshot the header before anything adds or removes the log pane. */
-  const rememberHeaderHeight = useCallback(() => {
-    const h = centerSizes.current[0];
-    if (typeof h === 'number' && h > 0) headerHeight.current = h;
-  }, []);
-
-  // Collapsing clamps the log pane to its header and gives the reclaimed
-  // height back to the canvas; expanding reverses it. Allotment.resize()
-  // takes a size for every pane, so both branches rebuild the whole array.
-  const setLogPaneHeight = useCallback((next: number) => {
-    const sizes = centerSizes.current;
-    if (!centerSplitRef.current || sizes.length < 3) return;
-    const [headerH, canvasH, logH] = sizes;
-    const delta = logH - next;
-    centerSplitRef.current.resize([headerH, canvasH + delta, next]);
-  }, []);
-
+  // The console sits in the hand-laid body under the steps, so opening,
+  // closing, collapsing or popping it out changes no Allotment pane — the
+  // header can't be pushed around by it.
   const toggleLogCollapsed = useCallback(() => {
-    setLogCollapsed((wasCollapsed) => {
-      if (wasCollapsed) {
-        setLogPaneHeight(preCollapseLogHeight.current);
-      } else {
-        // Remember the height we had, but never restore to a sliver.
-        const current = centerSizes.current[2] ?? DEFAULT_LOG_HEIGHT;
-        preCollapseLogHeight.current = Math.max(current, DEFAULT_LOG_HEIGHT);
-        setLogPaneHeight(LOG_HEADER_HEIGHT);
-      }
-      return !wasCollapsed;
-    });
-  }, [setLogPaneHeight]);
-
-  // Popping out hands the pane's height back to the canvas; docking restores
-  // it, so the canvas doesn't jump a second time when the log returns.
-  const popLogOut = useCallback(() => {
-    rememberHeaderHeight();
-    const current = centerSizes.current[2] ?? DEFAULT_LOG_HEIGHT;
-    if (current > LOG_HEADER_HEIGHT) preCollapseLogHeight.current = current;
-    setLogMode('floating');
-  }, [rememberHeaderHeight]);
-
+    if (logCollapsed) setStepsMaximized(false);
+    setLogCollapsed(!logCollapsed);
+  }, [logCollapsed]);
+  const popLogOut = useCallback(() => setLogMode('floating'), []);
   const dockLog = useCallback(() => {
-    rememberHeaderHeight();
     setLogMode('docked');
     setLogCollapsed(false);
-    // The pane is re-shown this render; size it on the next frame, once
-    // Allotment has restored its cached visible size.
-    requestAnimationFrame(() => setLogPaneHeight(preCollapseLogHeight.current));
-  }, [setLogPaneHeight, rememberHeaderHeight]);
-
+    setStepsMaximized(false);
+  }, []);
   const toggleLog = useCallback(() => {
-    rememberHeaderHeight();
-    setIsLogOpen((prev) => !prev);
-  }, [rememberHeaderHeight]);
+    if (!isLogOpen) setStepsMaximized(false);
+    setIsLogOpen(!isLogOpen);
+  }, [isLogOpen]);
+  const closeLog = useCallback(() => setIsLogOpen(false), []);
 
-  const closeLog = useCallback(() => {
-    rememberHeaderHeight();
-    setIsLogOpen(false);
-  }, [rememberHeaderHeight]);
-
-  // Adding or removing the log pane makes Allotment redistribute that height
-  // across the remaining panes, and the header could absorb most of it while
-  // it allowed up to 600px. Measured then: opening the log grew the
-  // header pane 110px -> 300px, pushing the steps down ~190px and leaving them
-  // there after the log was closed again. Allotment offers no "don't touch this
-  // pane" option, so pin the header back to the height the user left it at and
-  // settle the whole difference against the canvas.
-  useLayoutEffect(() => {
-    const split = centerSplitRef.current;
-    const sizes = centerSizes.current;
-    if (!split || sizes.length < 2) return;
-    const total = sizes.reduce((a, b) => a + b, 0);
-    const header = Math.min(headerHeight.current, HEADER_EXPANDED_HEIGHT);
-    const log = sizes.length >= 3 ? sizes[2] : 0;
-    const canvas = total - header - log;
-    if (canvas <= 0) return;
-    split.resize(sizes.length >= 3 ? [header, canvas, log] : [header, canvas]);
-  }, [isLogOpen, logMode]);
-
-  // Between the two heights the toolbar would show half-cut, so on release
-  // snap to whichever is nearer and give the difference to the canvas.
+  // Between its two heights the header would show the toolbar half-cut, so on
+  // release snap to whichever is nearer and give the difference to the body.
   const snapHeader = useCallback((sizes: number[]) => {
     const split = centerSplitRef.current;
-    const [h, canvas, ...rest] = sizes;
-    if (!split || h === undefined || canvas === undefined) return;
+    const [h, body] = sizes;
+    if (!split || h === undefined || body === undefined) return;
     const mid = (HEADER_COLLAPSED_HEIGHT + HEADER_EXPANDED_HEIGHT) / 2;
     const next = h < mid ? HEADER_COLLAPSED_HEIGHT : HEADER_EXPANDED_HEIGHT;
-    headerHeight.current = next;
-    if (next !== h) split.resize([next, canvas + h - next, ...rest]);
+    if (next !== h) split.resize([next, body + h - next]);
   }, []);
+
+  // ── Steps / console split ──────────────────────────────────────────────
+  // The body below the header is: steps region, bar, console, background.
+  // The steps region auto-fits the tallest step until the bar is dragged
+  // (`manualStepsHeight` set), VS Code style; double-click goes back to
+  // auto-fit. Steps and console collapse independently.
+  const bodyRef = useRef<HTMLDivElement | null>(null);
+  const [bodyHeight, setBodyHeight] = useState(0);
+  useLayoutEffect(() => {
+    const el = bodyRef.current;
+    if (!el) return;
+    const measure = () => setBodyHeight(el.clientHeight);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  const [stepsCollapsed, setStepsCollapsed] = useState(false);
+  const [manualStepsHeight, setManualStepsHeight] = useState<number | null>(null);
+  const [fitStepsHeight, setFitStepsHeight] = useState(0);
+  const autoFit = manualStepsHeight === null;
+
+  const consoleDocked = isLogOpen && logMode === 'docked';
+  // The most the steps may take: auto-fit leaves the console its default
+  // height; a drag may squeeze it to its title bar.
+  const maxAutoSteps = Math.max(0, bodyHeight - STEPS_FOOTER_HEIGHT
+    - (consoleDocked ? (logCollapsed ? LOG_HEADER_HEIGHT : DEFAULT_LOG_HEIGHT) : 0));
+  const maxManualSteps = Math.max(0, bodyHeight - STEPS_FOOTER_HEIGHT - (consoleDocked ? LOG_HEADER_HEIGHT : 0));
+  const stepsHeight = stepsCollapsed ? 0
+    : stepsMaximized ? maxManualSteps
+    : autoFit ? Math.min(fitStepsHeight, maxAutoSteps)
+    : Math.min(manualStepsHeight, maxManualSteps);
+
+  // Auto-fit measures the steps as they lay out against the full available
+  // height (the columns are given maxAutoSteps, not the region's height — a
+  // column is capped at its container, so measuring inside a fitted region
+  // would only ever read back the region). Re-measured whenever a column
+  // changes size: expanding, running, a grid loading.
+  const { steps: workflowSteps } = workflow;
+  useLayoutEffect(() => {
+    const main = canvasRef.current;
+    if (!autoFit || !main) return;
+    const measure = () => {
+      const top = main.getBoundingClientRect().top;
+      let bottom = 0;
+      main.querySelectorAll('.column-wrapper > *, .add-step-container > *').forEach((el) => {
+        bottom = Math.max(bottom, el.getBoundingClientRect().bottom - top);
+      });
+      const scrollbar = main.offsetHeight - main.clientHeight;
+      setFitStepsHeight(Math.ceil(bottom + scrollbar + STEPS_FIT_PADDING));
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    main.querySelectorAll('.column-wrapper > *, .add-step-container > *').forEach(el => observer.observe(el));
+    observer.observe(main);
+    return () => observer.disconnect();
+  }, [autoFit, workflowSteps, expandedStepIds, maximizedStepId, minimizedStepIds]);
+
+  const openDockedLog = useCallback(() => {
+    setLogMode('docked');
+    setLogCollapsed(false);
+    setStepsMaximized(false);
+    setIsLogOpen(true);
+  }, []);
+
+  // The footer's ⌃/⌄ move it one stop at a time:
+  //   collapsed  ⇄  normal (fit or dragged)  ⇄  maximized
+  // Maximizing minimizes a docked console to its title bar, so the footer
+  // lands right on it; with the console closed it lands at the page bottom.
+  const stepsUp = useCallback(() => {
+    if (stepsMaximized) setStepsMaximized(false);
+    else setStepsCollapsed(true);
+  }, [stepsMaximized]);
+  const stepsDown = useCallback(() => {
+    if (stepsCollapsed) {
+      setStepsCollapsed(false);
+      return;
+    }
+    setStepsMaximized(true);
+    if (consoleDocked) setLogCollapsed(true);
+  }, [stepsCollapsed, consoleDocked]);
+
+  // The footer is the drag handle — everywhere but its buttons. Dragging it up
+  // while the console is closed opens the console.
+  const splitDrag = useRef<{ startY: number; startSteps: number; moved: boolean } | null>(null);
+  const [splitDragging, setSplitDragging] = useState(false);
+
+  const onSplitPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0 || (e.target as HTMLElement).closest('button')) return;
+    e.preventDefault();
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+    splitDrag.current = { startY: e.clientY, startSteps: stepsHeight, moved: false };
+    setSplitDragging(true);
+  }, [stepsHeight]);
+
+  const onSplitPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    const drag = splitDrag.current;
+    if (!drag) return;
+    const dy = e.clientY - drag.startY; // downward = the steps grow
+    if (!drag.moved && Math.abs(dy) < 3) return;
+    drag.moved = true;
+    // Dragging up from under the steps opens a closed console.
+    if (!isLogOpen && dy < 0) openDockedLog();
+    setStepsCollapsed(false);
+    setStepsMaximized(false);
+    setManualStepsHeight(Math.min(Math.max(drag.startSteps + dy, 0), maxManualSteps));
+  }, [isLogOpen, openDockedLog, maxManualSteps]);
+
+  const onSplitPointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    const drag = splitDrag.current;
+    splitDrag.current = null;
+    setSplitDragging(false);
+    if (e.currentTarget.hasPointerCapture?.(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
+    if (!drag || !drag.moved) return;
+    // Snap shut below the thresholds, like the sidebars. A collapsed side
+    // re-expands to where it was before this drag.
+    const steps = Math.min(Math.max(drag.startSteps + (e.clientY - drag.startY), 0), maxManualSteps);
+    if (steps < STEPS_SNAP_THRESHOLD) {
+      setStepsCollapsed(true);
+      setManualStepsHeight(drag.startSteps >= STEPS_SNAP_THRESHOLD ? drag.startSteps : null);
+    }
+    if (consoleDocked) {
+      const consoleBody = bodyHeight - STEPS_FOOTER_HEIGHT - steps - LOG_HEADER_HEIGHT;
+      if (consoleBody < LOG_SNAP_THRESHOLD) setLogCollapsed(true);
+    }
+  }, [maxManualSteps, consoleDocked, bodyHeight]);
+
+  /** Double-click: back to auto-fit, steps shown. */
+  const onSplitDoubleClick = useCallback(() => {
+    setManualStepsHeight(null);
+    setStepsCollapsed(false);
+    setStepsMaximized(false);
+  }, []);
+
+  // The ⌃/⌄ pair is the same BarChevrons the console's title bar uses, with the
+  // same 12px padding, so the two pairs sit in one column and look alike.
+  const stepsFooter = (
+    <div
+      className={`steps-footer${splitDragging ? ' is-dragging' : ''}`}
+      role="separator"
+      aria-orientation="horizontal"
+      aria-label="Resize steps and console"
+      title="Drag to resize · double-click to fit the steps"
+      onPointerDown={onSplitPointerDown}
+      onPointerMove={onSplitPointerMove}
+      onPointerUp={onSplitPointerUp}
+      onPointerCancel={onSplitPointerUp}
+      onDoubleClick={(e) => { if (!(e.target as HTMLElement).closest('button')) onSplitDoubleClick(); }}
+    >
+      <div className="steps-footer__left">
+        <BarChevrons
+          upLabel={stepsMaximized ? 'Restore steps' : 'Collapse steps'}
+          downLabel={stepsCollapsed ? 'Expand steps' : 'Maximize steps'}
+          onUp={stepsUp}
+          onDown={stepsDown}
+          upDisabled={stepsCollapsed}
+          downDisabled={stepsMaximized}
+        />
+        <span className="steps-footer__title">Steps</span>
+      </div>
+      {/* Bottom right: what the pointer is over, or what's being selected. */}
+      <StepsStatusText />
+    </div>
+  );
 
   // ── Allotment pane-size handlers ──────────────────────────────────────
   // Snap to "collapsed" when the user drags the divider very small, so the
@@ -641,11 +800,15 @@ export default function MainLayout() {
 
   const canvasBlock = (
     <main className="main-content horizontal-scroll-area" ref={canvasRef}>
-      <StepWiringProvider>
         <div
           className="columns-container"
           data-testid="columns-container"
-          style={{ '--canvas-width': `${canvasWidth}px` } as React.CSSProperties}
+          style={{
+            '--canvas-width': `${canvasWidth}px`,
+            // Auto-fit: lay the columns out against the full available height
+            // so they can be measured (see the steps/console split).
+            ...(autoFit && bodyHeight > 0 ? { height: `${maxAutoSteps}px` } : {}),
+          } as React.CSSProperties}
         >
           {workflow.steps.map((step, index) => {
             const isExpanded = expandedStepIds.has(step.id);
@@ -659,7 +822,7 @@ export default function MainLayout() {
                   step={step}
                   stepIndex={index}
                   previousSteps={previousSteps}
-                  color={getStepColor(index)}
+                  color={step.step_color ?? getStepColor(index)}
                   isActive={isExpanded}
                   isSqueezed={!isExpanded}
                   isMaximized={isMaximized}
@@ -696,11 +859,13 @@ export default function MainLayout() {
             </button>
           </div>
         </div>
-      </StepWiringProvider>
     </main>
   );
 
   return (
+    // Spans everything, detached step windows included, so any step's grid
+    // can report what the pointer is over to the steps bar.
+    <StepsStatusProvider>
     <div className="main-layout" data-testid="main-layout">
       <ActivityBar activeView={activeActivityView} onViewChange={handleViewChange} />
 
@@ -776,7 +941,6 @@ export default function MainLayout() {
                 vertical
                 proportionalLayout={false}
                 ref={centerSplitRef}
-                onChange={handleCenterSizes}
                 onDragEnd={snapHeader}
               >
                 <Allotment.Pane
@@ -786,32 +950,31 @@ export default function MainLayout() {
                 >
                   {headerBlock}
                 </Allotment.Pane>
-                <Allotment.Pane minSize={200}>
-                  {canvasBlock}
-                </Allotment.Pane>
+                <Allotment.Pane minSize={0}>
+                  {/* Steps, bar, console, then the canvas background for any
+                      height neither fills. The wiring provider spans the
+                      body so the steps bar can show a selection being made. */}
+                  <StepWiringProvider>
+                  <div className="center-body" ref={bodyRef}>
+                    <div
+                      className="steps-region"
+                      style={bodyHeight > 0 ? { height: stepsHeight } : { flex: '1 1 0' }}
+                    >
+                      {canvasBlock}
+                    </div>
 
-                {/* The execution log docks here, below the canvas and between
-                    the two sidebars.
+                    {/* The steps' bottom bar; the console's title bar sits
+                        flush beneath it. */}
+                    {stepsFooter}
 
-                    The pane exists only while the log is OPEN. A permanently
-                    mounted pane that is merely `visible={false}` makes
-                    Allotment reserve its preferredSize in the first layout
-                    pass, which pushed the canvas down and left a gap under the
-                    workflow tabs until the first log toggle forced a
-                    redistribute. With the log closed the centre column is the
-                    same two-pane split it has always been.
-
-                    While the log is open, `visible` (not unmounting) is what
-                    hides the pane for the floating case: Allotment sizes a
-                    hidden pane to 0 rather than unmounting it, so ExecutionLog
-                    keeps its place in the React tree and can portal itself out
-                    without losing its filter and scroll state. */}
-                {isLogOpen && (
-                <Allotment.Pane
-                  preferredSize={DEFAULT_LOG_HEIGHT}
-                  minSize={LOG_HEADER_HEIGHT}
-                  visible={logMode === 'docked'}
-                >
+                    {/* The console stays mounted while open — floating, it
+                        portals itself out from here, keeping its filter and
+                        scroll state across pop-out and dock. */}
+                    {isLogOpen && (
+                  <div
+                    className={`console-region${logCollapsed ? ' is-collapsed' : ''}`}
+                    style={consoleDocked ? undefined : { display: 'none' }}
+                  >
                   <ExecutionLog
                     logs={executionLogs}
                     onClear={clearLogs}
@@ -826,8 +989,14 @@ export default function MainLayout() {
                     dispatchCommand={dispatchCommand}
                     consoleStepMap={consoleStepMap}
                   />
+                  </div>
+                    )}
+
+                    {/* Whatever the steps and an expanded console don't fill. */}
+                    {!(consoleDocked && !logCollapsed) && <div className="center-filler" />}
+                  </div>
+                  </StepWiringProvider>
                 </Allotment.Pane>
-                )}
               </Allotment>
             </div>
           </Allotment.Pane>
@@ -883,7 +1052,7 @@ export default function MainLayout() {
               availableOperations={availableOperations}
               pipelineStatus={pipelineStatus}
               pipelineCursorIndex={pipelineCursorIndex}
-              color={getStepColor(stepIndex)}
+              color={step.step_color ?? getStepColor(stepIndex)}
               initialPosition={dw.position}
               onClose={() => closeDetachedWindow(dw.id)}
               onUpdate={(id, updates) => updateStep(id, updates)}
@@ -925,5 +1094,6 @@ export default function MainLayout() {
         onClose={() => setIsFileEditorOpen(false)}
       />
     </div>
+    </StepsStatusProvider>
   );
 }

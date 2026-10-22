@@ -52,17 +52,21 @@ describe('typed cells in the grid', () => {
     expect(screen.getAllByText('16×16 RGB image')).toHaveLength(2);
   });
 
-  it('opens the cell in place, under its row, fetching that one cell; a second click folds it', async () => {
-    const { container } = render(<DataOutputGrid cells={cells} refId="ref1" />);
-    fireEvent.click(screen.getAllByText('16×16 RGB image')[1]);
+  it('a click selects the cell; its open control shows it, fetching that one cell, in the popover', async () => {
+    // Spec 014 §8: the popover wraps the cell's full view (REQ-VIS-040/041).
+    render(<DataOutputGrid cells={cells} refId="ref1" stepName="pics" />);
+    const cell = screen.getAllByText('16×16 RGB image')[1];
+    fireEvent.click(cell);
+    expect(fetchCellView).not.toHaveBeenCalled();              // a click only selects
+    fireEvent.mouseEnter(cell.closest('[role="gridcell"]')!);
+    fireEvent.click(screen.getByLabelText('Open the selection'));
     await waitFor(() => expect(fetchCellView).toHaveBeenCalledWith('ref1', 1, 'img'));
-    const strip = container.querySelector('.cell-open-row');
-    expect(strip).not.toBeNull();
-    expect(strip!.querySelector('.cv-panel.cv-inline')).not.toBeNull();
-    // It sits in the grid, after row 1's cells — not in an overlay.
-    expect(screen.getByRole('region', { name: 'Cell img, row 1' }).closest('.data-grid, .output-container')).not.toBeNull();
-    fireEvent.click(screen.getAllByText('16×16 RGB image')[1]);
-    expect(container.querySelector('.cell-open-row')).toBeNull();
+    const popover = screen.getByRole('dialog', { name: 'pics · row 1, img' });
+    // The cell view sits inside the popover, without controls of its own.
+    expect(popover.querySelector('.cv-panel.cv-embedded')).not.toBeNull();
+    expect(popover.querySelectorAll('[aria-label="Close"]')).toHaveLength(1);
+    fireEvent.click(screen.getByLabelText('Close'));
+    expect(screen.queryByRole('dialog')).toBeNull();
   });
 
   it('never opens the viewer while picking data for a formula', () => {

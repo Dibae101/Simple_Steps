@@ -128,6 +128,8 @@ async function hydrateStep(s: PipelineFile['steps'][number], i: number): Promise
     status: 'pending' as StepStatus,
     // Keep legacy 'operation' field in sync so the formula bar picks it up
     operation: formula,
+    ...(typeof s.meta?.step_color === 'string' ? { step_color: s.meta.step_color } : {}),
+    ...(typeof s.meta?.notes === 'string' ? { notes: s.meta.notes } : {}),
   };
 }
 
@@ -951,10 +953,21 @@ export default function useWorkflow() {
    * The pipeline id is derived from the name so the filename on disk always
    * matches the id we store in the tab (no UUID/slug mismatch).
    */
-  const saveWorkflow = useCallback(async (projectId: string, pipelineName: string): Promise<PipelineFile> => {
+  /**
+   * Save the current workflow as `pipelineName` in `projectId`.
+   *
+   * `pipelineId` pins the file to write (an already-open workflow keeps its
+   * file even after a rename); without it the id is derived from the name.
+   * `overwrite: false` rejects with `WorkflowExistsError` if that file exists.
+   */
+  const saveWorkflow = useCallback(async (
+    projectId: string,
+    pipelineName: string,
+    { pipelineId: fixedId, overwrite = true }: { pipelineId?: string; overwrite?: boolean } = {},
+  ): Promise<PipelineFile> => {
     const current = workflowRef.current;
     // Derive a stable slug from the name so filename === id
-    const pipelineId = pipelineName
+    const pipelineId = fixedId || pipelineName
       .toLowerCase()
       .trim()
       .replace(/[^a-z0-9]+/g, '-')
@@ -976,9 +989,16 @@ export default function useWorkflow() {
         config: s.configuration,
         // formula is the canonical field — always persisted
         formula: s.formula ?? s.operation ?? '',
+        // What the formula can't carry: the step's colour and notes.
+        ...((s.step_color || s.notes) ? {
+          meta: {
+            ...(s.step_color ? { step_color: s.step_color } : {}),
+            ...(s.notes ? { notes: s.notes } : {}),
+          },
+        } : {}),
       })),
     };
-    return savePipeline(projectId, pipeline);
+    return savePipeline(projectId, pipeline, { overwrite });
   }, []);
 
   /** Load a pipeline from a project and replace the current workflow. */

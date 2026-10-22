@@ -260,3 +260,15 @@
 .single-value-display.openable {
   cursor: zoom-in !important;
 }
+
+/* Embedded: the content alone, inside the selection popover (spec 014 §8),
+   which owns the frame and the controls. */
+.cv-panel.cv-embedded {
+  width: auto;
+  max-height: none;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.cv-embedded .cv-body { padding: 8px; }

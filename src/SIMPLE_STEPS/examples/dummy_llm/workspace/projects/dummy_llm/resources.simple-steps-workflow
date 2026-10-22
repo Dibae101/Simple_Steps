@@ -103,7 +103,7 @@
     },
     {
       "name": "region_table",
-      "expression": "identity[mod.select(columns=[\"city\", \"value\"])](wf[\"regions\"])",
+      "expression": "zip_(wf[\"readings\"], wf[\"regions\"])",
       "meta": {
         "label": "region_table"
       }

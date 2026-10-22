@@ -14,7 +14,7 @@ too: the saved file declares, the server owns the live objects.
 from __future__ import annotations
 
 from simple_steps_core import grid
-from simple_steps_core.grid import mod, op, res
+from simple_steps_core.grid import mod, op, res, zip_
 
 from SIMPLE_STEPS.operations import to_rows
 
@@ -50,8 +50,9 @@ def build_resources() -> grid.Workflow:
     wf["hello"] = res["llm"].complete[mod.source()](prompt="hi")
     wf["inferred"] = res["db"].lookup(wf["keys"])
 
-    # a resource step's output feeds later steps like any other
-    wf["region_table"] = identity[mod.select(columns=["city", "value"])](wf["regions"])
+    # a resource step's output feeds later steps like any other; a map step is
+    # only its results, so zip_ puts each city beside its region (by row id)
+    wf["region_table"] = zip_(wf["readings"], wf["regions"])
     wf["house_summaries"] = summarize[mod.map()](wf["notes"], llm=res["house_llm"])
     return wf
 

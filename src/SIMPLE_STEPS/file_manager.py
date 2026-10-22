@@ -126,12 +126,45 @@ def _strip_workflow_extension(name: str) -> str:
     return name
 
 
+def _is_plain_filename(name: str) -> bool:
+    return (
+        bool(name)
+        and name not in (".", "..")
+        and not any(c in name for c in ("/", "\\", "\0"))
+    )
+
+
+def pipeline_slug(name: str) -> str:
+    """The file stem a workflow named *name* is saved under.
+
+    Two names with the same slug ("My Flow", "my-flow") are the same file, so
+    this — not the display name — is what "already exists" is checked against.
+    """
+    base = _strip_workflow_extension(name or "")
+    return _slugify(base) if re.search(r"[A-Za-z0-9]", base) else "pipeline"
+
+
+class PipelineExistsError(FileExistsError):
+    """Raised by ``save_pipeline(..., overwrite=False)`` when the file exists."""
+
+    def __init__(self, project_id: str, pipeline_id: str, path: str):
+        self.project_id = project_id
+        self.pipeline_id = pipeline_id
+        self.path = path
+        super().__init__(
+            f'A workflow named "{pipeline_id}" already exists in project "{project_id}".'
+        )
+
+
 def _pipeline_filename_candidates(pipeline_id: str) -> List[str]:
     """Return candidate workflow filenames for a given pipeline id."""
     base_input = _strip_workflow_extension(pipeline_id)
     slug = _slugify(base_input)
     safe = re.sub(r"[^a-z0-9A-Z\-_]", "", base_input)
-    bases = [b for b in (slug, safe, base_input) if b]
+    # The raw id is only tried when it is a plain file name: anything that
+    # could step out of the project folder ("../x", "a/b") is never joined.
+    raw = base_input if _is_plain_filename(base_input) else ""
+    bases = [b for b in (slug, safe, raw) if b]
 
     # Dedupe while preserving order
     uniq_bases = []
@@ -283,17 +316,41 @@ def load_pipeline(project_id: str, pipeline_id: str) -> Optional[PipelineFile]:
         return None
     try:
         with open(path) as f:
-            return PipelineFile(**json.load(f))
+            pf = PipelineFile(**json.load(f))
+        # The file stem is the workflow's identity: report it as the id, the
+        # same way list_pipelines does, so a workflow reached by any route
+        # (sidebar, file tree, after a save) has exactly one id.
+        pf.id = _strip_workflow_extension(os.path.basename(path))
+        return pf
     except Exception as e:
         print(f"Error loading pipeline {pipeline_id}: {e}")
         return None
 
 
-def save_pipeline(project_id: str, pipeline: PipelineFile) -> PipelineFile:
-    """Save (create or overwrite) a pipeline file inside a project folder."""
+def save_pipeline(
+    project_id: str, pipeline: PipelineFile, *, overwrite: bool = True,
+) -> PipelineFile:
+    """Save a pipeline file inside a project folder.
+
+    With ``overwrite=False`` an existing workflow of the same name — under
+    either extension — raises ``PipelineExistsError`` instead of being
+    replaced. The returned pipeline's ``id`` is the file stem it was written to.
+    """
     target_dir = _resolve_project_dir(project_id)
     if not target_dir:
         raise ValueError(f"Invalid project_id: {project_id}")
+
+    # An existing file for this id — whatever its stem or extension — is the
+    # one written back to, so a save never forks a workflow into two files.
+    existing = _find_pipeline_path(target_dir, pipeline.id or pipeline.name)
+    if existing:
+        slug = _strip_workflow_extension(os.path.basename(existing))
+        if not overwrite:
+            raise PipelineExistsError(project_id, slug, existing)
+        path = existing
+    else:
+        slug = pipeline_slug(pipeline.id or pipeline.name)
+        path = os.path.join(target_dir, f"{slug}{WORKFLOW_EXT}")
 
     # Ensure the target folder exists
     os.makedirs(target_dir, exist_ok=True)
@@ -302,10 +359,8 @@ def save_pipeline(project_id: str, pipeline: PipelineFile) -> PipelineFile:
     if not pipeline.created_at:
         pipeline.created_at = now
     pipeline.updated_at = now
+    pipeline.id = slug
 
-    # Use pipeline id as filename slug
-    pipeline_slug = _slugify(pipeline.id) or _slugify(pipeline.name)
-    path = os.path.join(target_dir, f"{pipeline_slug}{WORKFLOW_EXT}")
     with open(path, "w") as f:
         f.write(pipeline.model_dump_json(indent=2))
 

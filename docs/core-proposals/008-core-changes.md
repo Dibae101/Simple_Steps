@@ -69,6 +69,50 @@ a table for a `str` parameter.
 does (run, not quoted), what it changes in the app, and a recommendation.
 Running them found C20 below, and that K2 is only half fixed.
 
+## Status at b9f66d5
+
+The app was moved to `b9f66d5` (core 009: results-only steps, `Output(data,
+states, meta)`, row ids, strict `zip_`, data-hash versions, implicit
+`mod.auto()`, `wf.preview` / `wf.cell`) on 2026-10-21. Plan:
+[`dev_plan/124`](../dev_plan/124-core-009-integration.md).
+
+- **`SHIM(core §C21)` rewritten**, not deleted: `core_bridge.uncaught_failed`
+  now reads `row_states` and `notes` (the ledger is gone). Checked by running
+  core: a breaker-stopped row is `failed` with no `cause` and counts as
+  uncaught; `try_except` (written after the verb) sets `caught: True`; a
+  blocked row has a `cause` and doesn't count.
+
+New asks, each found by running core at `b9f66d5`:
+
+| # | Ask | Evidence |
+|---|---|---|
+| **C22** | `zip_` refuses two grids that share a column name, instead of keeping the first | `zip_(readings, double_n[mod.map(name="n")](readings))` completed with columns `['city', 'n']` and `n = [1, 0, 2]`: the doubled `[2, 0, 4]` were dropped without a message — the silent drop 009 decision 2 rules out |
+| **C23** | `collapse(by=…)` naming a column the input lacks is refused at declaration | `sum_totals[mod.collapse(by="city")](wf["totals"])` over a map's result (no `city`) declared fine, then raised a bare pandas `KeyError: 'city'` from `collapse_` at run |
+| **C24** | `wf.cell(...)["inputs"][].state` uses cell states | it returns step statuses (`"completed"`), not `"known"` as 009 §4 shows |
+| **C25** | Per-cell staleness (009 step 7) | app spec 014's out-of-date marks are per step until then |
+| **C26** | `009-status.md` and `ui-context.md` say `wf.preview` / `wf.cell` are uncommitted | both are in `b9f66d5` |
+| **C27** | `wf.cell(...)["inputs"]` lists every input cell: argument references too, and the column(s) read, not only the main input's row | for `scale[mod.map()](wf["r"], weight=wf["w"][0][cols["w"]])`, `wf.cell("s", 1, "value")["inputs"]` is `[{"step": "r", "id": 1}]` — no `w` row 0, no column `n`. The app reconstructs both from the saved formula meanwhile (spec 014 REQ-VIS-058) |
+
+## Status at 523ad1d
+
+Core answered [`010-asks-at-b9f66d5.md`](010-asks-at-b9f66d5.md) in its own
+`docs/core-proposals/010-status.md`. Checked by **running** core at `523ad1d`
+on 2026-10-21 (not by reading the reply), and the app moved to it the same
+day, with the owner's confirmation:
+
+| Ask | Checked |
+|---|---|
+| C21 | `output.uncaught` → `[1]`, `output.stops_run` → `True` for one failing row. **`SHIM(core §C21)` deleted**; metrics read `len(output.uncaught)` |
+| C22 | `zip_(r, d)` sharing `n` is `invalid`: *"zip_: 'n' is in both 'r' and 'd'; rename one (mod.map(name=…) or mod.rename)"*. New bad example `zip_shares_a_column` |
+| C23 | *"collapse groups by 'city', which 's' does not have (it has value)"* at declaration |
+| C24, C27 | `inputs` lists both bindings, each with `columns`, `argument`, a cell `state` (`known`) and `values` |
+| C25 | editing row 1's `n` → `wf.stale_rows("s")` = `[1]`; editing a column the step doesn't read leaves it fresh |
+| C26 | done — though core's `010-status.md` itself still says "uncommitted"; it's in `523ad1d` |
+
+Also new in core: editing a step that has run keeps its output, stale, with a
+reason (`meta["stale_reason"]`: `updated args`, …), and `wf.arg_changes(step)`
+says what it was computed with. The app uses these from dev_plan/124 phase 2.
+
 ## The goal: the app imports core's grid and nothing else
 
 The app should use only `simple_steps_core.grid`'s public functions. Each

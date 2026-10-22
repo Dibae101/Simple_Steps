@@ -23,6 +23,7 @@ from .pack_loader import PackLoader, set_loader, get_loader
 from .file_manager import (
     list_projects, create_project, delete_project,
     list_pipelines, load_pipeline, save_pipeline, delete_pipeline,
+    PipelineExistsError,
     PROJECTS_DIR,
     WORKSPACE_ROOT,
 )
@@ -739,9 +740,23 @@ async def get_pipeline(project_id: str, pipeline_id: str):
     return {**pipeline.model_dump(), "steps": [s.ui_dict() for s in pipeline.steps]}
 
 @app.post("/api/projects/{project_id}/pipelines", response_model=PipelineFile)
-async def upsert_pipeline(project_id: str, pipeline: PipelineFile):
-    """Create or overwrite a pipeline file inside a project."""
-    return save_pipeline(project_id, pipeline)
+async def upsert_pipeline(project_id: str, pipeline: PipelineFile, overwrite: bool = True):
+    """Create or overwrite a pipeline file inside a project.
+
+    ``?overwrite=false`` makes it create-only: a workflow whose name maps to
+    an existing file is refused with 409 rather than silently replaced.
+    """
+    try:
+        return save_pipeline(project_id, pipeline, overwrite=overwrite)
+    except PipelineExistsError as e:
+        raise HTTPException(status_code=409, detail={
+            "code": "workflow_exists",
+            "message": str(e),
+            "project_id": e.project_id,
+            "pipeline_id": e.pipeline_id,
+        })
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
 
 @app.delete("/api/projects/{project_id}/pipelines/{pipeline_id}")
 async def remove_pipeline(project_id: str, pipeline_id: str):

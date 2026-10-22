@@ -24,6 +24,8 @@ been superseded by the unified-expression model documented here.
 | [`120-literals-and-references.md`](./120-literals-and-references.md) | The rule that only `wf["step"]` is a reference and everything else is a literal; the canonical `tool[modifiers](input, arguments)` formula; requirements, tests and asks for core. |
 | [`121-ui-and-core-changes.md`](./121-ui-and-core-changes.md) | What to change in the UI (reference picking, the formula bar), in core, and in the app backend, with the evidence for each and an order of work. |
 | [`122-skeleton-complete.md`](./122-skeleton-complete.md) | **Draft.** The four pieces that complete the skeleton (object model, resources, the agent, custom cell types), the decisions to settle first, and what's deferred to cleanup. |
+| [`124-core-009-integration.md`](./124-core-009-integration.md) | **Proposed.** Taking core 009 (results-only steps, per-cell states, row ids, `wf.preview`), a core `Workflow` per session, then the grid of spec 014, in six phases. |
+| [`123-tool-picker-discrepancy.md`](./123-tool-picker-discrepancy.md) | **Note.** The formula-bar autocomplete and the Formula panel's tool picker list, show and write tools differently (the autocomplete's formulas don't parse for most tools); suggestions to unify them. |
 
 ## One-paragraph summary
 

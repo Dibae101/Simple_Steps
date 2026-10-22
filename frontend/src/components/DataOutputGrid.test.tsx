@@ -30,9 +30,18 @@ describe('DataOutputGrid', () => {
     expect(onCellClick).toHaveBeenCalled();
   });
 
-  it('renders empty state when no cells', () => {
-    render(<DataOutputGrid cells={[]} />);
-    // Empty state shows "Empty" text in a single-value-display
-    expect(screen.getByText('Empty')).toBeInTheDocument();
+  it('shows a step with no output as a 1×1 dataframe whose cell says empty', () => {
+    // Data is always a dataframe: an empty or undefined expression still has one.
+    for (const cells of [[], undefined]) {
+      const { unmount } = render(<DataOutputGrid cells={cells} />);
+      expect(screen.getByRole('grid')).toBeInTheDocument();
+      expect(screen.getAllByRole('columnheader')).toHaveLength(1);
+      expect(screen.getByRole('columnheader', { name: 'value' })).toBeInTheDocument();
+      expect(screen.getAllByRole('row')).toHaveLength(1);
+      const cell = screen.getByRole('gridcell');
+      expect(cell).toHaveTextContent('empty');
+      expect(cell).toHaveClass('empty-frame-cell');
+      unmount();
+    }
   });
 });

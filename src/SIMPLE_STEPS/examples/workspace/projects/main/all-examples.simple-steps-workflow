@@ -28,8 +28,15 @@
       }
     },
     {
-      "name": "scored",
+      "name": "score",
       "expression": "scale[mod.map(name=\"score\")](wf[\"readings\"])",
+      "meta": {
+        "label": "score"
+      }
+    },
+    {
+      "name": "scored",
+      "expression": "zip_(wf[\"readings\"], wf[\"score\"])",
       "meta": {
         "label": "scored"
       }
@@ -50,7 +57,7 @@
     },
     {
       "name": "texts",
-      "expression": "identity[mod.rename(columns={\"city\": \"text\"})](wf[\"regions\"])",
+      "expression": "identity[mod.rename(columns={\"city\": \"text\"})](wf[\"big\"])",
       "meta": {
         "label": "texts"
       }

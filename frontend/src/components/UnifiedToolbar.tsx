@@ -132,7 +132,7 @@ export default function UnifiedToolbar({
               onClick={onToggleLogs}
               title={isLogOpen ? 'Close Logs' : 'Open Logs'}
             >
-              <Icon name="output" size={14} />
+              <Icon name="terminal" size={14} />
               {logCount > 0 && <span className="ut-log-count">{logCount}</span>}
               {logErrorCount > 0 && <span className="ut-error-dot" />}
             </button>

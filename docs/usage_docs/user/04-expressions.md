@@ -1,8 +1,12 @@
-# 04 — Formula syntax (operation expressions)
+# 04 — Expressions (the formula syntax)
 
-Every step is one **operation expression**, simple-steps-core's syntax. It is
-valid Python: in the formula bar you prefix it with `=`; in a script it's the
-right-hand side of `wf["step"] = …`.
+Every step is one **expression**: the line in its formula bar. In the app you
+start it with `=`. The Formula panel (**fx**) writes it for you, so you don't
+need to know all of this to begin — see [03 — Define a step](03-define-a-step.md)
+— but this page is the reference for reading and writing it by hand.
+
+(For developers: it's simple-steps-core's operation syntax, and valid
+Python — in a script it's the right-hand side of `wf["step"] = …`.)
 
 ## The shape
 
@@ -134,6 +138,6 @@ The formula bar runs no code, so these are refused:
 - computed arguments: `name=str.upper("ada")` — write the literal `"ADA"`
 - a step as a modifier setting: `mod.sort(by=wf["x"])` — settings are literals
 
-More: [`examples/README.md`](../../src/SIMPLE_STEPS/examples/README.md#the-formula-syntax-in-one-screen)
+More: [`examples/README.md`](../../../src/SIMPLE_STEPS/examples/README.md#the-formula-syntax-in-one-screen)
 and the 44-step tour in
-[`examples/basic/basic_pipeline.py`](../../src/SIMPLE_STEPS/examples/basic/basic_pipeline.py).
+[`examples/basic/basic_pipeline.py`](../../../src/SIMPLE_STEPS/examples/basic/basic_pipeline.py).

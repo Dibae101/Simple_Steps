@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import ConsoleView from './ConsoleView';
+import BarChevrons from './BarChevrons';
 import { useConsole } from '../context/ConsoleContext';
 import type { WorkflowCommand } from '../types/commands';
 import './ExecutionLog.css';
@@ -264,14 +265,17 @@ export default function ExecutionLog({
     >
       <div className="execution-log-header-left">
         {!isFloating && (
-          <button
-            className="log-collapse-btn"
-            onClick={onToggleCollapse}
-            title={isCollapsed ? 'Expand log' : 'Collapse log'}
-            aria-expanded={!isCollapsed}
-          >
-            {isCollapsed ? '▸' : '▾'}
-          </button>
+          // ⌃ minimizes the console (rolls it up into its title bar), ⌄
+          // expands it — the same pair, in the same column, as the steps
+          // footer's.
+          <BarChevrons
+            upLabel="Minimize console"
+            downLabel="Expand console"
+            onUp={() => { if (!isCollapsed) onToggleCollapse?.(); }}
+            onDown={() => { if (isCollapsed) onToggleCollapse?.(); }}
+            upDisabled={isCollapsed}
+            downDisabled={!isCollapsed}
+          />
         )}
         <div className="panel-tabs" onMouseDown={(e) => e.stopPropagation()}>
           {TABS.map((t) => (

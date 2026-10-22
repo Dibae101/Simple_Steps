@@ -22,8 +22,15 @@
       }
     },
     {
-      "name": "scored",
+      "name": "score",
       "expression": "scale[mod.map(name=\"score\")](wf[\"readings\"])",
+      "meta": {
+        "label": "score"
+      }
+    },
+    {
+      "name": "scored",
+      "expression": "zip_(wf[\"readings\"], wf[\"score\"])",
       "meta": {
         "label": "scored"
       }
@@ -78,8 +85,15 @@
       }
     },
     {
-      "name": "bucketed",
+      "name": "bucket",
       "expression": "label_city[mod.group(name=\"bucket\")](wf[\"scored\"])",
+      "meta": {
+        "label": "bucket"
+      }
+    },
+    {
+      "name": "bucketed",
+      "expression": "zip_(wf[\"scored\"], wf[\"bucket\"])",
       "meta": {
         "label": "bucketed"
       }

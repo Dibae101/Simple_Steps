@@ -42,6 +42,12 @@ def _totals(data):
     return _column_equal(data, TOTALS) or "no column holds price × quantity for every order"
 
 
+def _with_totals(data):
+    if "order_id" not in data or "city" not in data:
+        return f"columns {list(data.columns)}: want each order (order_id, city, …) beside its total"
+    return _column_equal(data, TOTALS) or "no column holds price × quantity for every order"
+
+
 def _large(data):
     found = sorted(data["order_id"]) if "order_id" in data else None
     return found == [1001, 1002, 1007, 1009] or f"kept orders {found}, not 1001, 1002, 1007, 1009"
@@ -66,12 +72,16 @@ def _months(data):
 TASKS: List[Task] = [
     Task("totals", "Add a step called totals with each order's total: price times quantity.",
          '=line_total[mod.map(name="total")](wf["orders"])', _totals),
+    # A map step is only its results: totals holds the totals, on the orders'
+    # row ids. zip_ puts each order beside its total for the steps after.
+    Task("with_totals", "Add a step called with_totals: each order beside its total.",
+         '=zip_(wf["orders"], wf["totals"])', _with_totals),
     Task("large", "Add a step called large that keeps only the orders whose total is over 100.",
-         '=is_large_order[mod.filter()](wf["totals"], threshold=100)', _large),
+         '=is_large_order[mod.filter()](wf["with_totals"], threshold=100)', _large),
     Task("ranked", "Add a step called ranked: the large orders sorted by total, highest first.",
          '=identity[mod.sort(by="total", ascending=False)](wf["large"])', _ranked),
     Task("per_city", "Add a step called per_city with the total revenue for each city.",
-         '=sum_totals[mod.collapse(by="city", initial=0)](wf["totals"])', _per_city),
+         '=sum_totals[mod.collapse(by="city", initial=0)](wf["with_totals"])', _per_city),
     Task("months", "Add a step called months with the month each order was placed.",
          '=month_of[mod.map(name="month")](wf["orders"])', _months),
 ]

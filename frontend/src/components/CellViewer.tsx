@@ -19,6 +19,11 @@ import './CellViewer.css';
  *   floating  — pulled off into a panel of its own (`CellPanelHost`): dragged
  *               by its title bar, resized from its corner, open while you keep
  *               working — even after its step collapses.
+ *   embedded  — the content alone, inside another widget that owns the window
+ *               controls (the selection popover, spec 014 §8): no title bar,
+ *               so close and minimize aren't doubled. It still keeps its own
+ *               events — zooming a chart never drags or closes the widget
+ *               around it.
  */
 
 type Size = 'normal' | 'maximized' | 'minimized';
@@ -28,7 +33,7 @@ interface CellViewerProps {
   row: number;
   column: string;
   onClose: () => void;
-  mode?: 'inline' | 'floating';
+  mode?: 'inline' | 'floating' | 'embedded';
   startMinimized?: boolean;
   /** Where a new panel opens: each one steps down and right of the last. */
   cascade?: number;
@@ -41,6 +46,7 @@ export default function CellViewer({
   refId, row, column, onClose, mode = 'inline', startMinimized = false, cascade = 0,
 }: CellViewerProps) {
   const floating = mode === 'floating';
+  const embedded = mode === 'embedded';
   const [data, setData] = useState<CellView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [size, setSize] = useState<Size>(startMinimized ? 'minimized' : 'normal');
@@ -112,7 +118,7 @@ export default function CellViewer({
       role="region"
       aria-label={`Cell ${column}, row ${row}`}
     >
-      <div
+      {!embedded && <div
         className={`cv-header${floating && size !== 'maximized' ? ' cv-draggable' : ''}`}
         onPointerDown={onHeaderPointerDown}
         onPointerMove={onHeaderPointerMove}
@@ -135,7 +141,7 @@ export default function CellViewer({
           {!floating && <Control label="Pull off" title="Pull off into its own panel" icon="link-external" onClick={pullOff} />}
           <Control label="Close" icon="close" className="cv-close" onClick={onClose} />
         </span>
-      </div>
+      </div>}
       {/* Kept mounted while minimized, so a chart keeps its zoom and pan. */}
       <div className="cv-body" hidden={size === 'minimized'}>
         {error && <div className="cv-error">{error}</div>}
@@ -146,6 +152,7 @@ export default function CellViewer({
   );
 
   if (floating) return createPortal(panel, document.body);
+  if (embedded) return panel;            // its host places it and owns its controls
   // Expanded, an inline cell is lifted over the whole window. It's portalled,
   // because inside the step column `position: fixed` would be relative to the
   // column and clip it; a click on the backdrop puts it back in the grid.

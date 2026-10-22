@@ -11,7 +11,7 @@ The mistakes have no twin: they're the formulas that don't make a step.
 from __future__ import annotations
 
 from simple_steps_core import grid
-from simple_steps_core.grid import mod, op, stack
+from simple_steps_core.grid import mod, op, stack, zip_
 
 from SIMPLE_STEPS.operations import to_rows
 
@@ -29,6 +29,7 @@ def build_corrected() -> grid.Workflow:
     wf["gappy"] = to_rows[mod.source()](data='{"n": [1, null, 3]}')
     wf["people"] = to_rows[mod.source()](data='{"first": ["Ada", "Bo"]}')
     wf["scored"] = double_n[mod.map()](wf["readings"])
+    wf["doubled"] = double_n[mod.map(name="n")](wf["readings"])
     wf["people_named"] = identity[mod.rename(columns={"first": "name"})](wf["people"])
 
     # referring to steps
@@ -50,13 +51,13 @@ def build_corrected() -> grid.Workflow:
     # columns and types
     wf["missing_column"] = identity[mod.select(columns=["n"])](wf["readings"])
     wf["parameter_not_a_column"] = greet[mod.map()](wf["people_named"])
-    wf["output_replaces_input"] = double_n[mod.map(name="doubled")](wf["readings"])
+    wf["reads_a_result"] = double_n[mod.map()](wf["readings"])
+    wf["zip_shares_a_column"] = zip_(wf["readings"], wf["scored"])
     wf["nullable_column"] = add_one_or_zero[mod.map()](wf["gappy"])
     wf["table_returns_text"] = describe_rows[mod.table()](wf["readings"])
 
     # ran, but warned
     wf["argument_hides_column"] = label[mod.map()](wf["readings"])
-    wf["output_overwrites_value"] = double_n[mod.map(name="doubled_again")](wf["scored"])
 
     # ran, but rows failed
     wf["uncaught_failure"] = reciprocal[mod.map(), mod.try_except(default=0.0)](wf["readings"])

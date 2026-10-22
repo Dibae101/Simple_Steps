@@ -9,7 +9,7 @@ output is the same.
 from __future__ import annotations
 
 from simple_steps_core import grid
-from simple_steps_core.grid import mod, op, res
+from simple_steps_core.grid import mod, op, res, zip_
 
 from image_tools import (ImageDirectory, average_color, film_strip, image_width, invert,
                          is_dark, mean_brightness, thumbnail, to_grayscale)
@@ -31,8 +31,11 @@ def build_images() -> grid.Workflow:
     wf["widths"] = image_width[mod.map(name="width")](wf["images"])
     wf["brightness"] = mean_brightness[mod.map(name="brightness")](wf["images"])
     wf["colors"] = average_color[mod.map(name="color")](wf["images"])
-    wf["dark"] = is_dark[mod.filter()](wf["images"], threshold=80)
-    wf["brightest"] = identity[mod.sort(by="brightness", ascending=False)](wf["brightness"])
+    # a map step is only its results; zip_ puts each file's name beside them
+    wf["named"] = zip_(wf["files"], wf["images"])
+    wf["dark"] = is_dark[mod.filter()](wf["named"], threshold=80)
+    wf["bright_by_file"] = zip_(wf["files"], wf["brightness"])
+    wf["brightest"] = identity[mod.sort(by="brightness", ascending=False)](wf["bright_by_file"])
 
     # changing: each a new image column
     wf["grey"] = to_grayscale[mod.map(name="grey")](wf["images"])

@@ -32,7 +32,7 @@ def _is_test_only(name: str) -> bool:
 def source_hash(src_dir: str) -> str:
     """
     A stable hash of every build-relevant file under *src_dir*, and of the
-    usage docs the bundle carries (``docs/usage_docs/*.md``, imported by the
+    usage docs the bundle carries (``docs/usage_docs/**/*.md``, imported by the
     User Docs panel — spec 013, REQ-ENV-008).
 
     Content-based on purpose — mtimes are unusable here, since the build
@@ -47,10 +47,17 @@ def source_hash(src_dir: str) -> str:
     digest = hashlib.sha256()
     docs_dir = os.path.join(src_dir, *_BUNDLED_DOCS)
     if os.path.isdir(docs_dir):
-        for name in sorted(os.listdir(docs_dir)):
-            if name.endswith(".md"):
-                digest.update(f"usage_docs/{name}".encode())
-                with open(os.path.join(docs_dir, name), "rb") as f:
+        # Recursive: the docs are split into user/ and developer/ guides,
+        # and the bundle carries every page of both (docs.ts globs **/*.md).
+        for root, dirnames, filenames in os.walk(docs_dir):
+            dirnames[:] = sorted(d for d in dirnames if not d.startswith("."))
+            for name in sorted(filenames):
+                if not name.endswith(".md"):
+                    continue
+                path = os.path.join(root, name)
+                rel = os.path.relpath(path, docs_dir).replace(os.sep, "/")
+                digest.update(f"usage_docs/{rel}".encode())
+                with open(path, "rb") as f:
                     digest.update(f.read())
     for root, dirnames, filenames in os.walk(src_dir):
         dirnames[:] = sorted(
