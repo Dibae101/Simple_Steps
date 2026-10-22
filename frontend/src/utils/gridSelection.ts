@@ -12,11 +12,14 @@
 import { compactRows } from './stepsStatus';
 
 /**
- * The row-number column (the index), as a column of the selection: the
- * corner's lower-right triangle selects it (spec 014 REQ-VIS-057). Its header
- * is the corner. Never a data column's name.
+ * The index column (the row ids), as a column of the selection: its cells and
+ * its header (`index`) select like any other (spec 014 REQ-VIS-057). Never a
+ * data column's name.
  */
 export const INDEX_COL = '\u0000index';
+
+/** A column's name as shown: the index column is `index`. */
+export const colLabel = (col: string) => (col === INDEX_COL ? 'index' : col);
 
 export type GridSelKind = 'cell' | 'block' | 'rows' | 'columns' | 'all' | 'cells' | 'index';
 
@@ -69,26 +72,28 @@ function single(pick: GridSelPick, rows: number[], cols: string[]): GridSel {
     case 'column':
       return { kind: 'columns', cells: cellsOf(rows, [pick.col]), headers: [pick.col], anchor: { row: rows[0], col: pick.col } };
     case 'index':
-      return { kind: 'index', cells: cellsOf(rows, [INDEX_COL]), headers: [INDEX_COL], anchor: null };
+      return { kind: 'index', cells: cellsOf(rows, [INDEX_COL]), headers: [INDEX_COL], anchor: { row: rows[0], col: INDEX_COL } };
     case 'all':
       return { kind: 'all', cells: cellsOf(rows, cols), headers: [...cols], anchor: null };
   }
 }
 
 /** Shift: a block from the anchor to the pick. */
-function extended(prev: GridSel, pick: GridSelPick, rows: number[], cols: string[]): GridSel {
+function extended(prev: GridSel, pick: GridSelPick, rows: number[], dataCols: string[]): GridSel {
   const a = prev.anchor!;
+  const cols = dataCols;
+  const order = [INDEX_COL, ...dataCols];   // a block may start or end in the index
   if (pick.kind === 'row') {
     const rowList = span(rows, a.row, pick.row);
     return { kind: 'rows', cells: cellsOf(rowList, cols), headers: [], anchor: a };
   }
   if (pick.kind === 'column') {
-    const colList = span(cols, a.col, pick.col);
+    const colList = span(order, a.col, pick.col);
     return { kind: 'columns', cells: cellsOf(rows, colList), headers: colList, anchor: a };
   }
   if (pick.kind === 'cell') {
     const rowList = span(rows, a.row, pick.row);
-    const colList = span(cols, a.col, pick.col);
+    const colList = span(order, a.col, pick.col);
     const kind = rowList.length === 1 && colList.length === 1 ? 'cell' : 'block';
     return { kind, cells: cellsOf(rowList, colList), headers: [], anchor: a };
   }
@@ -135,11 +140,19 @@ export function inGridSel(sel: GridSel | null, row: number, col: string): boolea
  * is row -1, just above the first row; the index (INDEX_COL) is the column
  * left of the first.
  */
+/**
+ * Whether a cell (or header, row -1) is inside the box drawn for a selection:
+ * the selection itself, plus the index cells of whole rows and the index
+ * column of the whole table.
+ */
+export function drawnIn(sel: GridSel | null, row: number, col: string, dataCols: string[]): boolean {
+  return inGridSel(sel, row, col)
+    || (col === INDEX_COL && (sel?.kind === 'all' || (sel?.kind === 'rows' && inGridSel(sel, row, dataCols[0]))));
+}
+
 export function selectionEdges(sel: GridSel | null, row: number, col: string, rows: number[], dataCols: string[]) {
   const none = { top: false, right: false, bottom: false, left: false };
-  // A whole row's box takes in its row number, as a column's takes in its header.
-  const has = (r: number, c: string) =>
-    inGridSel(sel, r, c) || (sel?.kind === 'rows' && c === INDEX_COL && inGridSel(sel, r, dataCols[0]));
+  const has = (r: number, c: string) => drawnIn(sel, r, c, dataCols);
   if (!has(row, col)) return none;
   const cols = [INDEX_COL, ...dataCols];
   const i = row === -1 ? -1 : rows.indexOf(row);
@@ -181,6 +194,34 @@ export function takesWholeColumns(sel: GridSel): boolean {
 }
 
 /**
+ * The top-left cell of the box drawn for a selection — where its header tab
+ * sits. `row` is -1 for a header.
+ */
+export function selectionTopLeft(sel: GridSel | null, rows: number[], dataCols: string[]): { row: number; col: string } | null {
+  if (!sel) return null;
+  const order = [INDEX_COL, ...dataCols];
+  for (const row of [-1, ...rows]) {
+    const col = order.find((c) => drawnIn(sel, row, c, dataCols));
+    if (col !== undefined) return { row, col };
+  }
+  return null;
+}
+
+/**
+ * The bottom-right cell of the box drawn for a selection — where its drag
+ * handle sits. `row` is -1 for a header.
+ */
+export function selectionBottomRight(sel: GridSel | null, rows: number[], dataCols: string[]): { row: number; col: string } | null {
+  if (!sel) return null;
+  const order = [INDEX_COL, ...dataCols].reverse();
+  for (const row of [-1, ...rows].reverse()) {
+    const col = order.find((c) => drawnIn(sel, row, c, dataCols));
+    if (col !== undefined) return { row, col };
+  }
+  return null;
+}
+
+/**
  * The rows and data columns a selection touches, in the grid's order (what
  * the popover shows; it always shows the index beside them).
  */
@@ -194,20 +235,24 @@ export function selectionExtent(sel: GridSel, rows: number[], cols: string[]): {
 /** One line for the status bar and the popover: `rows 1–2 × city–n · 2×2`. */
 export function describeGridSel(sel: GridSel, rows: number[], cols: string[]): string {
   const ext = selectionExtent(sel, rows, cols);
-  const colRange = ext.cols.length === 1 ? ext.cols[0] : `${ext.cols[0]}–${ext.cols[ext.cols.length - 1]}`;
+  // Columns as shown, the index among them when it's part of the pick.
+  const shown = [INDEX_COL, ...cols]
+    .filter((c) => sel.headers.includes(c) || ext.rows.some((r) => inGridSel(sel, r, c)))
+    .map(colLabel);
+  const colRange = shown.length === 1 ? shown[0] : `${shown[0]}–${shown[shown.length - 1]}`;
   switch (sel.kind) {
     case 'cell':
-      return `row ${ext.rows[0]}, ${ext.cols[0]}`;
+      return `row ${ext.rows[0]}, ${shown[0]}`;
     case 'index':
-      return `row index · ${rows.length} row${rows.length === 1 ? '' : 's'}`;
+      return `index · ${rows.length} row${rows.length === 1 ? '' : 's'}`;
     case 'all':
       return `whole table · ${rows.length} row${rows.length === 1 ? '' : 's'} × ${cols.length} column${cols.length === 1 ? '' : 's'}`;
     case 'rows':
       return `${ext.rows.length === 1 ? 'row' : 'rows'} ${compactRows(ext.rows)}`;
     case 'columns':
-      return `${ext.cols.length === 1 ? 'column' : 'columns'} ${ext.cols.join(', ')} · ${rows.length} row${rows.length === 1 ? '' : 's'}`;
+      return `${shown.length === 1 ? 'column' : 'columns'} ${shown.join(', ')} · ${rows.length} row${rows.length === 1 ? '' : 's'}`;
     case 'block':
-      return `rows ${compactRows(ext.rows)} × ${colRange} · ${ext.rows.length}×${ext.cols.length}`;
+      return `rows ${compactRows(ext.rows)} × ${colRange} · ${ext.rows.length}×${shown.length}`;
     case 'cells':
       return `${sel.cells.length} cell${sel.cells.length === 1 ? '' : 's'}`;
   }

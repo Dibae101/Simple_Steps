@@ -1,21 +1,31 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { isErrorCell } from '../utils/errorCells';
 import type { GridPick, Selection } from '../utils/selection';
 import {
-  INDEX_COL, applyGridPick, controlCorner, describeGridSel, inGridSel, selectionEdges, selectionExtent,
-  takesWholeColumns,
+  INDEX_COL, applyGridPick, cellKey, describeGridSel, inGridSel, selectionEdges, selectionExtent,
+  selectionBottomRight, selectionTopLeft, takesWholeColumns,
 } from '../utils/gridSelection';
 import type { GridSel, GridSelPick } from '../utils/gridSelection';
 import type { GridSpot } from '../utils/stepsStatus';
 import type { Cell } from '../types/models';
 import type { StagedColumn } from '../hooks/useStagedPreview';
-import Icon from './Icon';
 import SelectionPopover from './SelectionPopover';
 import './OperationColumn.css'; // Ensure grid styles are available
 import './CellViewer.css';
 
-/** The selection's outline (spec 014 REQ-VIS-012): neutral, never a step colour. */
+/** The selection's outline when the step has no colour (spec 014 REQ-VIS-012). */
 const SELECTION_EDGE = '#1f2937';
+/** Height of the selection's header tab, which sits on the box's top edge. */
+const TAB_H = 16;
+
+/** Dark or white text, whichever reads on *hex*. */
+function textOn(hex: string): string {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex);
+  if (!m) return '#fff';
+  const n = parseInt(m[1], 16);
+  const [r, g, b] = [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  return 0.299 * r + 0.587 * g + 0.114 * b > 160 ? '#111' : '#fff';
+}
 /** The active cell's row number and column header. */
 const ACTIVE_HEADER_BG = '#e2e5ea';
 
@@ -109,7 +119,6 @@ export default function DataOutputGrid({
   // new page) means the old selection may not exist any more, so it lapses.
   // Open popovers keep the copy they were opened with.
   const [selection, setSelection] = useState<{ sel: GridSel | null; of: Cell[] | undefined }>({ sel: null, of: cells });
-  const [overSelection, setOverSelection] = useState(false);
   const [popovers, setPopovers] = useState<OpenPopover[]>([]);
   const nextPopover = useRef(1);
   const [hoveredRow, setHoveredRow] = useState<number | null>(null);
@@ -184,26 +193,113 @@ export default function DataOutputGrid({
   const looking = !wiringMode;
   const shownSel = looking && selection.of === cells ? selection.sel : null;
   const select = (pick: GridSelPick, e: React.MouseEvent) => {
+    // The click that ends a drag: the drag already made the selection.
+    if (dragEnded.current) { dragEnded.current = false; return; }
     const mods = { extend: e.shiftKey, toggle: e.metaKey || e.ctrlKey };
     setSelection((prev) => ({ sel: applyGridPick(prev.of === cells ? prev.sel : null, pick, mods, rows, cols), of: cells }));
   };
-  const corner = controlCorner(shownSel, rows, cols);
-  const isCorner = (row: number, col: string) => !!corner && corner.row === row && corner.col === col;
+
+  // Drag to select, as in Excel (REQ-VIS-011): press on a cell, a row's strip
+  // or a column header and drag; the selection grows from where the press
+  // started, as Shift-click would. A press without a move stays a click.
+  const drag = useRef<{ kind: 'cell' | 'row' | 'column'; start: GridSel | null; moved: boolean } | null>(null);
+  const dragEnded = useRef(false);
+  const startDrag = (pick: { kind: 'cell'; row: number; col: string } | { kind: 'row'; row: number } | { kind: 'column'; col: string },
+    e: React.MouseEvent) => {
+    dragEnded.current = false;
+    if (wiringMode || e.button !== 0 || e.shiftKey || e.metaKey || e.ctrlKey) return;
+    e.preventDefault();                       // no text selection while dragging
+    drag.current = { kind: pick.kind, start: applyGridPick(null, pick, { extend: false, toggle: false }, rows, cols), moved: false };
+    const end = () => {
+      if (drag.current?.moved) {
+        dragEnded.current = true;
+        // The closing click only comes when the drag ends where it began;
+        // otherwise don't let the flag swallow the next real click.
+        setTimeout(() => { dragEnded.current = false; }, 0);
+      }
+      drag.current = null;
+      window.removeEventListener('mouseup', end);
+    };
+    window.addEventListener('mouseup', end);
+  };
+  /** The pointer, mid-drag, is over (row, col) — a header when row is -1. */
+  const dragOver = (row: number, col: string) => {
+    const d = drag.current;
+    if (!d) return;
+    const pick: GridSelPick | null =
+      d.kind === 'cell' ? (row === -1 ? null : { kind: 'cell', row, col })
+        : d.kind === 'row' ? (row === -1 ? null : { kind: 'row', row })
+          : col === INDEX_COL ? null : { kind: 'column', col };
+    if (!pick) return;
+    d.moved = true;
+    setSelection({ sel: applyGridPick(d.start, pick, { extend: true, toggle: false }, rows, cols), of: cells });
+  };
   const activeCell = shownSel?.kind === 'cell' ? shownSel.anchor : null;
+
+  // The selection is one bold box round its cells, in the step's colour, as
+  // in Excel (REQ-VIS-012). A small header tab on the box's top-left edge
+  // names it; clicking the tab opens the selection popover (REQ-VIS-040).
+  const edge = stepColor ?? SELECTION_EDGE;
 
   /** The outline drawn on one cell or header, as inset shadows. */
   const outline = (row: number, col: string): React.CSSProperties => {
     const e = selectionEdges(shownSel, row, col, rows, cols);
     const sides = [
-      e.top && `inset 0 2px 0 ${SELECTION_EDGE}`,
-      e.bottom && `inset 0 -2px 0 ${SELECTION_EDGE}`,
-      e.left && `inset 2px 0 0 ${SELECTION_EDGE}`,
-      e.right && `inset -2px 0 0 ${SELECTION_EDGE}`,
+      e.top && `inset 0 2px 0 ${edge}`,
+      e.bottom && `inset 0 -2px 0 ${edge}`,
+      e.left && `inset 2px 0 0 ${edge}`,
+      e.right && `inset -2px 0 0 ${edge}`,
     ].filter(Boolean);
-    return {
-      ...(sides.length ? { boxShadow: sides.join(', ') } : {}),
-      ...(isCorner(row, col) ? { position: 'relative' as const } : {}),
+    return sides.length ? { boxShadow: sides.join(', ') } : {};
+  };
+
+  // Where the header tab goes: above the box's top-left cell, measured once
+  // the grid is drawn (cells carry data-sel-key) and again when it resizes.
+  const gridRef = useRef<HTMLDivElement>(null);
+  const topLeft = selectionTopLeft(shownSel, rows, cols);
+  const topLeftKey = topLeft ? cellKey(topLeft.row, topLeft.col) : null;
+  /** The grid's shape, as a value: a new rows/cols array with the same contents isn't a change. */
+  const shape = `${rows.length}|${cols.join('\u0001')}`;
+  const [tabAt, setTabAt] = useState<{ left: number; top: number } | null>(null);
+  // The drag handle — a dot on the box's bottom-right corner, as in Excel.
+  // Dragging it resizes the selection from its top-left corner. Only for
+  // shapes that grow: a cell or block, rows, columns.
+  const handleKind = shownSel?.kind === 'cell' || shownSel?.kind === 'block' ? 'cell'
+    : shownSel?.kind === 'rows' ? 'row' : shownSel?.kind === 'columns' ? 'column' : null;
+  const bottomRight = handleKind ? selectionBottomRight(shownSel, rows, cols) : null;
+  const bottomRightKey = bottomRight ? cellKey(bottomRight.row, bottomRight.col) : null;
+  const [handleAt, setHandleAt] = useState<{ left: number; top: number } | null>(null);
+  useLayoutEffect(() => {
+    const grid = gridRef.current;
+    if (!grid || !topLeftKey) { setTabAt(null); setHandleAt(null); return; }
+    const find = (key: string | null) => (key === null ? undefined
+      : Array.from(grid.querySelectorAll<HTMLElement>('[data-sel-key]')).find((c) => c.dataset.selKey === key));
+    // Only a real move re-renders: placing runs after every layout change.
+    const same = (a: { left: number; top: number } | null, b: { left: number; top: number } | null) =>
+      a?.left === b?.left && a?.top === b?.top;
+    const place = () => {
+      const tl = find(topLeftKey);
+      const tab = tl ? { left: tl.offsetLeft, top: tl.offsetTop - TAB_H } : null;
+      setTabAt((prev) => (same(prev, tab) ? prev : tab));
+      const br = find(bottomRightKey);
+      const dot = br ? { left: br.offsetLeft + br.offsetWidth, top: br.offsetTop + br.offsetHeight } : null;
+      setHandleAt((prev) => (same(prev, dot) ? prev : dot));
     };
+    place();
+    if (typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(place);
+    ro.observe(grid);
+    return () => ro.disconnect();
+  }, [topLeftKey, bottomRightKey, shape]);
+
+  /** Press on the drag handle: resize from the box's top-left corner. */
+  const startHandleDrag = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!topLeft || !handleKind) return;
+    const from = handleKind === 'cell' ? { kind: 'cell' as const, row: topLeft.row, col: topLeft.col }
+      : handleKind === 'row' ? { kind: 'row' as const, row: topLeft.row }
+        : { kind: 'column' as const, col: topLeft.col };
+    startDrag(from, e);
   };
 
   const openPopover = (e: React.MouseEvent) => {
@@ -212,20 +308,6 @@ export default function DataOutputGrid({
     const id = nextPopover.current++;
     setPopovers((ps) => [...ps, { id, at: { x: e.clientX, y: e.clientY }, sel: shownSel }]);
   };
-
-  /** The open control, at the selection's top-right corner (REQ-VIS-040). */
-  const openControl = (row: number, col: string) => isCorner(row, col) && (
-    <button
-      type="button"
-      className={`sel-open${overSelection ? ' sel-open-shown' : ''}`}
-      aria-label="Open the selection"
-      title="Open the selection"
-      onClick={openPopover}
-      onMouseDown={(e) => e.stopPropagation()}
-    >
-      <Icon name="screen-full" size={11} aria-hidden aria-label={undefined} />
-    </button>
-  );
 
   // ── Wiring: picks ───────────────────────────────────────────────────────
   // A click while a later step's formula bar has focus picks data for it:
@@ -261,16 +343,16 @@ export default function DataOutputGrid({
     else select({ kind: 'all' }, e);
   };
 
-  /** The corner's lower triangle: the index (row numbers). Looking only — a
-   *  formula can't reference the index yet. */
+  // The index column: its header selects it, its
+  // cells select like any cell. Looking only — a formula can't reference the
+  // index yet.
   const handleIndexClick = (e: React.MouseEvent) => {
     if (!wiringMode) select({ kind: 'index' }, e);
   };
+  const handleIndexCellClick = (row: number, e: React.MouseEvent) => {
+    if (!wiringMode) select({ kind: 'cell', row, col: INDEX_COL }, e);
+  };
 
-  /** The pointer is over (row, col), a header when row is -1: is that in the selection? */
-  const noteOver = (row: number, ...colsHere: string[]) =>
-    setOverSelection(colsHere.some((col) => inGridSel(shownSel, row, col)));
-  const indexSelected = inGridSel(shownSel, -1, INDEX_COL);
 
   const note = `${rows.length} row${rows.length !== 1 ? 's' : ''}, ${cols.length} column${cols.length !== 1 ? 's' : ''}`
     + (shownSel ? ` · ${describeGridSel(shownSel, rows, cols)}` : '');
@@ -349,9 +431,10 @@ export default function DataOutputGrid({
 
       <div
         className={`op-data-grid${wiringMode ? ' wiring-source' : ''}`}
-        onMouseLeave={() => { onHoverChange?.(null); setOverSelection(false); }}
+        ref={gridRef}
+        onMouseLeave={() => onHoverChange?.(null)}
         style={{
-          gridTemplateColumns: `50px repeat(${cols.length}, minmax(100px, 1fr))`,
+          gridTemplateColumns: `var(--grid-gutter) 50px repeat(${cols.length}, minmax(100px, 1fr))`,
           ...(wiringMode
             ? {
                 outline: '1px solid rgba(255, 193, 7, 0.6)',
@@ -362,39 +445,35 @@ export default function DataOutputGrid({
         }}
         role="grid"
       >
-        {/* Header Row. The corner is split on its diagonal, as in Excel: the
-            upper-left triangle selects the whole table, the lower-right one
-            labels the row-number column beneath it. */}
-        <div className="grid-header-cell row-index-header grid-corner" style={outline(-1, INDEX_COL)}>
-          <button
-            type="button"
-            className="grid-corner-select"
-            aria-label="Select the whole table"
-            title="Select the whole table"
-            data-state={highlight?.kind === 'all' || shownSel?.kind === 'all' ? 'selected' : hoveredCol === '__table__' ? 'hover' : undefined}
-            style={wiringMode ? { cursor: 'crosshair' } : undefined}
-            onClick={handleCornerClick}
-            onMouseEnter={() => { setHoveredCol('__table__'); noteOver(-1, INDEX_COL); onHoverChange?.({ kind: 'table' }); }}
-            onMouseLeave={() => setHoveredCol(null)}
-          />
-          <button
-            type="button"
-            className="grid-corner-index"
-            aria-label="Select the row index"
-            title="Select the row index"
-            data-state={indexSelected ? 'selected' : undefined}
-            disabled={wiringMode}
-            onClick={handleIndexClick}
-            onMouseEnter={() => { noteOver(-1, INDEX_COL); onHoverChange?.({ kind: 'column', column: '#' }); }}
-          >
-            <span className="grid-corner-label" aria-hidden="true">#</span>
-          </button>
-          {openControl(-1, INDEX_COL)}
+        {/* Header row. Left of it, the top of the row margin: selects the
+            whole table. Then the index column's header, then the columns'.
+            Rows are selected from the margin left of them, so every cell —
+            the index's included — stays a cell of its own. */}
+        <div
+          className={`grid-gutter grid-gutter-left grid-gutter-corner${highlight?.kind === 'all' || shownSel?.kind === 'all' ? ' is-selected' : ''}`}
+          role="button"
+          aria-label="Select the whole table"
+          title="Select the whole table"
+          style={wiringMode ? { cursor: 'crosshair' } : undefined}
+          onClick={handleCornerClick}
+          onMouseEnter={() => { setHoveredCol('__table__'); onHoverChange?.({ kind: 'table' }); }}
+          onMouseLeave={() => setHoveredCol(null)}
+        />
+        <div
+          className="grid-header-cell row-index-header"
+          data-sel-key={cellKey(-1, INDEX_COL)}
+          title={wiringMode ? "The index can't be referenced yet" : 'index (Shift: range, ⌘/Ctrl: add)'}
+          style={{ cursor: wiringMode ? 'default' : 'pointer', ...outline(-1, INDEX_COL) }}
+          onClick={handleIndexClick}
+          onMouseEnter={() => { onHoverChange?.({ kind: 'column', column: 'index' }); }}
+        >
+          index
         </div>
         {cols.map((col) => (
           <div
             key={col}
             className="grid-header-cell"
+            data-sel-key={cellKey(-1, col)}
             role="columnheader"
             title={wiringMode ? `Select column ${col} (Shift: range, ⌘/Ctrl: add)` : col}
             style={{
@@ -403,35 +482,70 @@ export default function DataOutputGrid({
               ...(activeCell?.col === col ? { background: ACTIVE_HEADER_BG } : {}),
               ...outline(-1, col),
             }}
+            onMouseDown={(e) => startDrag({ kind: 'column', col }, e)}
             onClick={(e) => handleColumnClick(col, e)}
-            onMouseEnter={() => { if (wiringMode) setHoveredCol(col); noteOver(-1, col); onHoverChange?.({ kind: 'column', column: col }); }}
+            onMouseEnter={() => { if (wiringMode) setHoveredCol(col); dragOver(-1, col); onHoverChange?.({ kind: 'column', column: col }); }}
             onMouseLeave={() => wiringMode && setHoveredCol(null)}
           >
             {col}
-            {openControl(-1, col)}
           </div>
         ))}
+
+        {shownSel && tabAt && (
+          <button
+            type="button"
+            className="sel-tab"
+            style={{ left: tabAt.left, top: tabAt.top, height: TAB_H, background: edge, color: textOn(edge) }}
+            aria-label="Open the selection"
+            title="Open the selection: its expression, state, inputs and outputs"
+            onClick={openPopover}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            {describeGridSel(shownSel, rows, cols)}
+            <span className="sel-tab-chevron" aria-hidden="true">▾</span>
+          </button>
+        )}
+        {shownSel && handleAt && (
+          <span
+            className="sel-handle"
+            style={{ left: handleAt.left, top: handleAt.top, background: edge }}
+            aria-hidden="true"
+            title="Drag to resize the selection"
+            onMouseDown={startHandleDrag}
+          />
+        )}
 
         {/* Data Rows */}
         {rows.map((r) => (
           <div key={r} className="grid-row" role="row">
-            {/* Row Number — in wiring mode this selects the whole row */}
+            {/* The margin left of the row: selects the whole row. */}
+            <div
+              className={`grid-gutter grid-gutter-left${(shownSel?.kind === 'rows' && inGridSel(shownSel, r, cols[0])) || isRowSelected(r) ? ' is-selected' : ''}`}
+              title={`Select row ${r} (Shift: range, ⌘/Ctrl: add)`}
+              style={wiringMode ? { cursor: 'crosshair' } : undefined}
+              onMouseDown={(e) => startDrag({ kind: 'row', row: r }, e)}
+              onClick={(e) => handleRowClick(r, e)}
+              onMouseEnter={() => { if (wiringMode) setHoveredRow(r); dragOver(r, cols[0]); onHoverChange?.({ kind: 'row', row: r }); }}
+              onMouseLeave={() => wiringMode && setHoveredRow(null)}
+            />
+            {/* The index: a cell of its own. */}
             <div
               className="grid-cell row-index"
-              title={wiringMode ? `Select row ${r} (Shift: range, ⌘/Ctrl: add)` : `row ${r}`}
+              data-sel-key={cellKey(r, INDEX_COL)}
+              role="rowheader"
+              title={wiringMode ? "The index can't be referenced yet" : `index ${r}`}
               style={wiringMode ? {
-                cursor: 'crosshair',
+                cursor: 'default',
                 background: isRowSelected(r) ? SELECTED_BG : hoveredRow === r ? HOVER_BG : undefined,
                 transition: 'background 0.1s ease',
               } : {
                 cursor: 'pointer',
-                ...(activeCell?.row === r || indexSelected || (shownSel?.kind === 'rows' && inGridSel(shownSel, r, cols[0]))
-                  ? { background: ACTIVE_HEADER_BG, color: '#222' } : {}),
+                ...(activeCell?.row === r ? { background: ACTIVE_HEADER_BG, color: '#222' } : {}),
                 ...outline(r, INDEX_COL),
               }}
-              onClick={(e) => handleRowClick(r, e)}
-              onMouseEnter={() => { if (wiringMode) setHoveredRow(r); noteOver(r, INDEX_COL, cols[0]); onHoverChange?.({ kind: 'row', row: r }); }}
-              onMouseLeave={() => wiringMode && setHoveredRow(null)}
+              onMouseDown={(e) => startDrag({ kind: 'cell', row: r, col: INDEX_COL }, e)}
+              onClick={(e) => handleIndexCellClick(r, e)}
+              onMouseEnter={() => { dragOver(r, INDEX_COL); onHoverChange?.({ kind: 'cell', row: r, column: 'index', value: String(r) }); }}
             >
               {r}
             </div>
@@ -495,7 +609,9 @@ export default function DataOutputGrid({
                   key={cellKey}
                   className={`grid-cell ${cell ? 'has-value' : 'empty'}${isErrorCell(cell) ? ' error-cell' : ''}${isEmptyFrameCell(cell) ? ' empty-frame-cell' : ''}`}
                   role="gridcell"
+                  data-sel-key={cellKey}
                   aria-selected={looking ? inGridSel(shownSel, r, c) : undefined}
+                  onMouseDown={(e) => startDrag({ kind: 'cell', row: r, col: c }, e)}
                   onClick={(e) => {
                     if (cell) handleCellWireClick(cell, e);
                     else if (looking) select({ kind: 'cell', row: r, col: c }, e);
@@ -507,7 +623,7 @@ export default function DataOutputGrid({
                       setHoveredCell(cellKey);
                       setHoveredCol(c);
                     }
-                    noteOver(r, c);
+                    dragOver(r, c);
                     onHoverChange?.({ kind: 'cell', row: r, column: c, value: cell?.display_value });
                   }}
                   onMouseLeave={() => {
@@ -518,7 +634,6 @@ export default function DataOutputGrid({
                   }}
                 >
                   {cell ? <CellContent cell={cell} /> : ''}
-                  {openControl(r, c)}
                 </div>
               );
             })}

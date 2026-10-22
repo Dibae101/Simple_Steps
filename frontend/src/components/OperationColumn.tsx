@@ -651,6 +651,9 @@ export default function OperationColumn({
                         stagedCellMode={stagedCellMode}
                         onHoverChange={(spot) => setGridHover(spot && { ...spot, step: step.label })}
                         onNoteChange={setDataNote}
+                        stepName={step.label}
+                        stepColor={color}
+                        formula={step.formula}
                       />
                     </div>
                   </div>

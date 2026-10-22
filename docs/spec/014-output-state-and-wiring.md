@@ -192,13 +192,11 @@ later steps is previewed:
 | Gesture | Result |
 |---|---|
 | **hover** a cell, row number, header or corner | a subtle highlight, and one status line: `score · row 2, value = ValueError · failed` |
-| **click** | selects it: the bounding box only, as in Excel (§6). No popover, no wiring |
-| **hover the selection** | a small *open* control appears on the selection's border |
-| **click the open control** | opens the selection popover (§8) |
+| **click** | selects it: a bold box in the step's colour, with a small header tab, as in Excel (§6). No popover, no wiring |
+| **click the selection's header tab** | opens the selection popover (§8) |
 
 - **REQ-VIS-010:** a click never opens a popover or shows wiring by itself;
-  the popover opens only from the control on the selection's border
-  (REQ-VIS-040).
+  the popover opens only from the selection's header tab (REQ-VIS-040).
 - **REQ-VIS-014:** **the caret rule.** The caret is the text cursor in the
   formula bar. Only while it is there (a formula is being typed) does a
   click on data **pass a reference** into the formula (§7.2), as in Excel.
@@ -212,9 +210,11 @@ later steps is previewed:
 | Click | Selects |
 |---|---|
 | a cell | that cell |
-| a row number | the row |
+| an index cell | that index cell |
+| the strip left of a row | the row |
 | a column header | the column |
-| the corner above the row numbers | the whole table |
+| the `index` header | the index column |
+| the top of the row strip, beside the header row | the whole table |
 | drag | a block |
 | Shift-click | extends to a block from the last pick |
 | ⌘/Ctrl-click | adds or removes a cell, row or column |
@@ -224,19 +224,27 @@ later steps is previewed:
   a step, so a column, the whole table or the index opened in the popover
   fetches every row of the step (up to a cap, saying `first N of M rows`
   past it). A row already has every column.
-- **REQ-VIS-012:** a selection is drawn as **one box around its perimeter**
-  (a column's box includes its header, a row's its row number), in a neutral dark colour that is
-  not a step colour. The active cell's row number and column header are
-  shaded.
+- **REQ-VIS-012:** a selection is drawn as **one bold box around its
+  perimeter, in the step's colour**, as in Excel (owner, 2026-10-22;
+  replaces the neutral dark outline). A column's box includes its header, a
+  row's its index cell. The active cell's row index and column header are
+  shaded. A small **header tab** in the same colour sits on the box's
+  top-left edge and names the selection (`row 1, n ▾`); clicking it opens
+  the selection popover (REQ-VIS-040).
 - **REQ-VIS-013:** the status line describes the selection in one line
   (`readings · rows 1–2 × city–n · 2×2`).
-- **REQ-VIS-057:** the corner above the row numbers is split on its diagonal
-  (top-right to bottom-left). The **upper-left triangle** is the control that
-  selects the whole table; the **lower-right triangle**, labelled `#`,
-  **selects the row index** (the row-number column), boxed like a column
-  and openable in the popover (owner, 2026-10-21). *(Built in
-  `DataOutputGrid`; while a formula is being edited the lower triangle does
-  nothing, since a formula can't reference the index yet.)*
+- **REQ-VIS-057:** **the index is a column of its own**, headed `index`,
+  and each index value is a cell of its own (owner, 2026-10-22): click it
+  to select it, Shift/⌘ to extend or add, open it in the popover.
+  Selecting rows moves **outside the cells**, to a thin strip left of the
+  table: the strip beside a row selects the row, and its top, beside the
+  header row, selects the whole table. Columns are selected by their
+  header, the index column by its `index` header. A row's box and the
+  whole table's take in the index cells. Today the index shows the grid's
+  row positions; core's row ids (which can be strings like `1.0` after an
+  expand) replace them with dev_plan 124 phase 1d. A formula can't
+  reference the index yet: while one is being edited, index clicks do
+  nothing. *(Replaces the split corner of 2026-10-21.)*
 
 ## 7. Wiring
 
@@ -307,9 +315,11 @@ connects.
 
 ### 8.1 Opening, moving, closing
 
-- **REQ-VIS-040:** hovering a selection shows a small, subtle *open* control
-  on its border. Clicking it opens the popover **centred where it was
-  clicked**: a thin frame around an **enlarged copy of the selected data**.
+- **REQ-VIS-040:** the selection's **header tab** (REQ-VIS-012) is how the
+  popover opens: clicking it opens the popover **centred where it was
+  clicked**: a thin frame around an **enlarged copy of the selected data**,
+  carrying every feature (expression, state, inputs, outputs). *(Replaces
+  the small open control that appeared on hover.)*
 - **REQ-VIS-041:** a large selection (a long column, the whole table) is a
   scrollable grid inside a size cap; a cell with large content (long text,
   an image, a figure, a table) shows it at full size, scrollable.
