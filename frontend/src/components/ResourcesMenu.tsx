@@ -14,6 +14,7 @@ import {
   pyLiteral,
   stepsUsingResource,
 } from '../utils/resources';
+import SymbolIcon from './SymbolIcon';
 
 /**
  * The workflow toolbar's Resources menu (docs/dev_plan/122 §2.4).
@@ -273,7 +274,7 @@ export default function ResourcesMenu({ resources, steps, onDefine, onRemove }: 
                   </span>
                   {!(isLoaded && !info) && (
                     <button className="ut-resource-edit" title="Change settings" onClick={() => startEdit(resName, decl)}>
-                      ✎
+                      <SymbolIcon name="edit" size={13} />
                     </button>
                   )}
                   <button

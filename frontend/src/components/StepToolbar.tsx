@@ -6,6 +6,7 @@ import type { OperationDefinition } from '../services/api';
 import { parseFormula } from '../utils/formulaParser';
 import type { ParsedFormula } from '../utils/formulaParser';
 import { useStepWiring } from '../context/StepWiringContext';
+import SymbolIcon from './SymbolIcon';
 
 // Lazy-load the Monaco-backed formula editor so the ~2 MB editor bundle
 // stays out of the initial JS payload.  While it's loading we render a
@@ -475,7 +476,7 @@ export default function StepToolbar({
               zIndex: 1000,
               lineHeight: 1.4,
             }}>
-              💡 <strong>Step references go inside an operation's argument.</strong>
+              <SymbolIcon name="lightbulb" size={13} /> <strong>Step references go inside an operation's argument.</strong>
               <br />
               e.g. <code style={{ background: '#fffde7', padding: '1px 4px', borderRadius: 3 }}>
                 =MY_OP(col=<strong>{formula}</strong>)
@@ -503,7 +504,7 @@ export default function StepToolbar({
               alignItems: 'center',
               gap: 5,
             }}>
-              ✓ Pass-through — hit ▶ to load this data into the step
+              <SymbolIcon name="check" size={13} /> Pass-through — hit <SymbolIcon name="play_arrow" size={13} /> to load this data into the step
             </div>
           )}
 

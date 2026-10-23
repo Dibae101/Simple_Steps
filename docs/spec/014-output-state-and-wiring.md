@@ -192,11 +192,15 @@ later steps is previewed:
 | Gesture | Result |
 |---|---|
 | **hover** a cell, row number, header or corner | a subtle highlight, and one status line: `score · row 2, value = ValueError · failed` |
-| **click** | selects it: a bold box in the step's colour, with a small header tab, as in Excel (§6). No popover, no wiring |
-| **click the selection's header tab** | opens the selection popover (§8) |
+| **click a cell** | opens it in the selection inspector, in place (§8); nothing stays selected (owner, 2026-10-22) |
+| **click a row strip or header; drag; Shift/⌘-click** | selects: a bold box in the step's colour, with a small header tab, as in Excel (§6) |
+| **click the selection's header tab** | opens the selection in the inspector, in place (§8); the selection is let go |
 
-- **REQ-VIS-010:** a click never opens a popover or shows wiring by itself;
-  the popover opens only from the selection's header tab (REQ-VIS-040).
+- **REQ-VIS-010:** a plain click on a cell opens that cell in the
+  inspector, in place; any other selection opens from its header tab
+  (REQ-VIS-040). Opening the inspector lets the selection go. A click never
+  shows wiring by itself. *(Changed 2026-10-22, owner: a click used to only
+  select.)*
 - **REQ-VIS-014:** **the caret rule.** The caret is the text cursor in the
   formula bar. Only while it is there (a formula is being typed) does a
   click on data **pass a reference** into the formula (§7.2), as in Excel.
@@ -308,29 +312,44 @@ later steps is previewed:
 - **REQ-VIS-032:** the step being edited and later steps cannot be
   referenced; clicks there do nothing. Enter saves; Esc cancels.
 
-## 8. The selection popover
+## 8. The selection inspector
 
 Opened on demand to see a selection's data up close and, if wanted, how it
 connects.
 
 ### 8.1 Opening, moving, closing
 
-- **REQ-VIS-040:** the selection's **header tab** (REQ-VIS-012) is how the
-  popover opens: clicking it opens the popover **centred where it was
-  clicked**: a thin frame around an **enlarged copy of the selected data**,
-  carrying every feature (expression, state, inputs, outputs). *(Replaces
-  the small open control that appeared on hover.)*
+- **REQ-VIS-040:** the selection's **header tab** (REQ-VIS-012), marked
+  with Material Symbols' outlined `frame_inspect` icon, opens the
+  **selection inspector in place**: over the selection, an enlarged copy of
+  the selected data, carrying every feature (expression, state, inputs,
+  outputs). It follows the selection as the page scrolls (owner,
+  2026-10-22).
 - **REQ-VIS-041:** a large selection (a long column, the whole table) is a
   scrollable grid inside a size cap; a cell with large content (long text,
   an image, a figure, a table) shows it at full size, scrollable.
-- **REQ-VIS-044:** clicking off the popover closes it. **Dragging the frame
-  moves it and pins it**: a pinned popover stays open until its close
-  control is used, so several can be compared.
-- **REQ-VIS-045:** the frame is **very thin** (a hairline), and carries only
-  small, subtle widgets **wrapped on its edge**, never between the frame and
-  the data: the header (a tab on the top edge), the inputs toggle (left),
-  the outputs toggle (right), and minimize/close (a tab on the top-right
-  corner, faint until the frame is hovered) (owner, 2026-10-21).
+- **REQ-VIS-044:** the inspector stays open until closed — clicking
+  elsewhere leaves it be. **Dragging its header bar pulls it off** into a
+  floating window (so several can be compared); a rail button does the same
+  and puts it back in place. **Minimizing** sends it to a chip in the steps
+  bar (between the steps and the console), in the step's colour: clicking
+  the chip puts it back where it was, its × closes it.
+- **REQ-VIS-045:** the **header bar** (the pull-off bar) is the step's
+  colour and names the step and the selection's rows and columns; clicking
+  it expands it to the full expression and state, nothing cut short. Its
+  **right end holds the window controls**, as on a cell's display: pull off
+  / put back, expand over the window (Esc restores), minimize, close. Its
+  **sides are the wiring**: inputs `→ƒ(x)` on the left, outputs `ƒ(x)→` on
+  the right (§8.3). The inspector **resizes from its corner**.
+- **REQ-VIS-063:** one cell shows **its value alone**, as the cell itself
+  (the header already names it). A cell with an **interactive display** (a
+  chart, an image, a table) is that display, filling the inspector at
+  whatever size it is resized to, with all of the display's own interaction
+  (owner, 2026-10-22).
+- **REQ-VIS-062:** while a selection is inspected, the grid marks it with a
+  **dashed outline and a light shade in the step's colour**, and the
+  `frame_inspect` icon on its corner; clicking the icon brings its inspector
+  forward (or back from the steps bar).
 
 ### 8.2 Header (top edge): what produced this
 
@@ -354,7 +373,7 @@ connects.
   the step's expression, status, mapping shape (REQ-VIS-009), what `auto`
   chose, and when it last ran.
 
-### 8.3 Inputs (left edge) and outputs (right edge)
+### 8.3 Inputs `→ƒ(x)` and outputs `ƒ(x)→` (the side rail)
 
 - **REQ-VIS-042:** the **inputs toggle** on the left edge, when on, boxes the
   cells that were used to produce the selection (REQ-VIS-020) with a

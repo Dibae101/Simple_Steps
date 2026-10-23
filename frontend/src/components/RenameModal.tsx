@@ -1,5 +1,6 @@
 import { useRef } from 'react';
 import './SaveModal.css'; /* reuse same modal styles */
+import SymbolIcon from './SymbolIcon';
 
 interface RenameModalProps {
   isOpen: boolean;
@@ -23,7 +24,7 @@ export default function RenameModal({ isOpen, currentName, onClose, onRename }: 
       <div className="modal-dialog" style={{ width: 340 }} onClick={e => e.stopPropagation()}>
         <div className="modal-header">
           <span className="modal-title">Rename Pipeline</span>
-          <button className="modal-close-btn" onClick={onClose}>✕</button>
+          <button className="modal-close-btn" onClick={onClose} aria-label="Close" title="Close"><SymbolIcon name="close" size={14} /></button>
         </div>
         <div className="modal-body">
           <div className="modal-field">

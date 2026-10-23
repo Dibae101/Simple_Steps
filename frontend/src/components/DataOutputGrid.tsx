@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { isErrorCell } from '../utils/errorCells';
 import type { GridPick, Selection } from '../utils/selection';
 import {
@@ -9,7 +9,10 @@ import type { GridSel, GridSelPick } from '../utils/gridSelection';
 import type { GridSpot } from '../utils/stepsStatus';
 import type { Cell } from '../types/models';
 import type { StagedColumn } from '../hooks/useStagedPreview';
-import SelectionPopover from './SelectionPopover';
+import { InspectorProvider, useInspectors } from '../context/InspectorContext';
+import { textOn, withAlpha } from '../utils/contrast';
+import SymbolIcon from './SymbolIcon';
+import type { SymbolName } from './SymbolIcon';
 import './OperationColumn.css'; // Ensure grid styles are available
 import './CellViewer.css';
 
@@ -18,24 +21,14 @@ const SELECTION_EDGE = '#1f2937';
 /** Height of the selection's header tab, which sits on the box's top edge. */
 const TAB_H = 16;
 
-/** Dark or white text, whichever reads on *hex*. */
-function textOn(hex: string): string {
-  const m = /^#?([0-9a-f]{6})$/i.exec(hex);
-  if (!m) return '#fff';
-  const n = parseInt(m[1], 16);
-  const [r, g, b] = [(n >> 16) & 255, (n >> 8) & 255, n & 255];
-  return 0.299 * r + 0.587 * g + 0.114 * b > 160 ? '#111' : '#fff';
-}
 /** The active cell's row number and column header. */
 const ACTIVE_HEADER_BG = '#e2e5ea';
 
-interface OpenPopover {
-  id: number;
-  at: { x: number; y: number };
-  sel: GridSel;
-}
+/** Where an inspected selection is marked in the grid, against the grid. */
+interface Mark { id: number; left: number; top: number; width: number; height: number }
 
-const TYPE_ICONS: Record<string, string> = { plotly: '📈', table: '▦', json: '{}' };
+/** A typed cell's icon when it has no thumbnail (Material Symbols, never emoji). */
+const TYPE_ICONS: Record<string, SymbolName> = { plotly: 'show_chart', table: 'table_chart', json: 'data_object' };
 
 /**
  * What a cell shows. Text and numbers as they are; a typed value (an image, a
@@ -49,7 +42,7 @@ function CellContent({ cell }: { cell: Cell }) {
     <span className="typed-cell" data-cell-type={cell.cell_type}>
       {cell.preview
         ? <img className="typed-cell-thumb" src={cell.preview} alt="" />
-        : TYPE_ICONS[cell.cell_type] && <span className="typed-cell-icon">{TYPE_ICONS[cell.cell_type]}</span>}
+        : TYPE_ICONS[cell.cell_type] && <span className="typed-cell-icon"><SymbolIcon name={TYPE_ICONS[cell.cell_type]} size={14} /></span>}
       <span className="typed-cell-text">{summary}</span>
     </span>
   );
@@ -95,7 +88,16 @@ interface DataOutputGridProps {
   formula?: string;
 }
 
-export default function DataOutputGrid({
+/**
+ * The grid's selection inspectors live in the app's InspectorProvider; a grid
+ * rendered without one (tests, a stand-alone page) brings its own.
+ */
+export default function DataOutputGrid(props: DataOutputGridProps) {
+  const ctx = useInspectors();
+  return ctx ? <Grid {...props} /> : <InspectorProvider><Grid {...props} /></InspectorProvider>;
+}
+
+function Grid({
   cells = [],
   onCellClick,
   wiringMode = false,
@@ -113,14 +115,14 @@ export default function DataOutputGrid({
   const [hoveredCol, setHoveredCol] = useState<string | null>(null);
   // Looking at data (spec 014 §6, §8): a click selects — a cell, a row, a
   // column, the whole table, a block — and draws its outline only. Hovering
-  // the selection shows an open control on its border, which opens the
-  // selection popover. Picking for a formula (wiring mode) is separate.
+  // the selection's header tab opens the selection inspector. Picking for a
+  // formula (wiring mode) is separate.
   // The selection remembers the cells it was made on: new data (a re-run, a
   // new page) means the old selection may not exist any more, so it lapses.
-  // Open popovers keep the copy they were opened with.
+  // Open inspectors keep the copy they were opened with.
   const [selection, setSelection] = useState<{ sel: GridSel | null; of: Cell[] | undefined }>({ sel: null, of: cells });
-  const [popovers, setPopovers] = useState<OpenPopover[]>([]);
-  const nextPopover = useRef(1);
+  const inspectorCtx = useInspectors()!;
+  const owner = useId();
   const [hoveredRow, setHoveredRow] = useState<number | null>(null);
   // Cells aren't pickable yet (they need rows AND columns, core 005 K9), so
   // only the setter is used — kept for when they are.
@@ -192,11 +194,20 @@ export default function DataOutputGrid({
   // ── Looking: selection and the popover ──────────────────────────────────
   const looking = !wiringMode;
   const shownSel = looking && selection.of === cells ? selection.sel : null;
+  // The last cell clicked: a plain click opens it in the inspector and leaves
+  // nothing selected, but Shift-click still extends from it, as in Excel.
+  const lastCell = useRef<{ row: number; col: string } | null>(null);
   const select = (pick: GridSelPick, e: React.MouseEvent) => {
     // The click that ends a drag: the drag already made the selection.
     if (dragEnded.current) { dragEnded.current = false; return; }
     const mods = { extend: e.shiftKey, toggle: e.metaKey || e.ctrlKey };
-    setSelection((prev) => ({ sel: applyGridPick(prev.of === cells ? prev.sel : null, pick, mods, rows, cols), of: cells }));
+    setSelection((prev) => {
+      const current = prev.of === cells ? prev.sel : null;
+      const from = current ?? (mods.extend && lastCell.current
+        ? applyGridPick(null, { kind: 'cell', ...lastCell.current }, { extend: false, toggle: false }, rows, cols)
+        : null);
+      return { sel: applyGridPick(from, pick, mods, rows, cols), of: cells };
+    });
   };
 
   // Drag to select, as in Excel (REQ-VIS-011): press on a cell, a row's strip
@@ -302,12 +313,86 @@ export default function DataOutputGrid({
     startDrag(from, e);
   };
 
-  const openPopover = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!shownSel) return;
-    const id = nextPopover.current++;
-    setPopovers((ps) => [...ps, { id, at: { x: e.clientX, y: e.clientY }, sel: shownSel }]);
+  // ── Inspecting: the selection inspector ─────────────────────────────────
+  /** The cell or header drawn at (row, col), by its data-sel-key. */
+  const elementAt = (row: number, col: string) => {
+    const key = cellKey(row, col);
+    return Array.from(gridRef.current?.querySelectorAll<HTMLElement>('[data-sel-key]') ?? [])
+      .find((c) => c.dataset.selKey === key);
   };
+  // Tell the inspectors where a selection of this grid is on screen, so one
+  // opened in place stays over it.
+  const latest = useRef({ rows, cols });
+  latest.current = { rows, cols };
+  useEffect(() => inspectorCtx.registerAnchor(owner, (sel) => {
+    const tl = selectionTopLeft(sel, latest.current.rows, latest.current.cols);
+    const el = tl && gridRef.current?.isConnected ? elementAt(tl.row, tl.col) : undefined;
+    return el ? el.getBoundingClientRect() : null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [inspectorCtx.registerAnchor, owner]);
+
+  /** Open *sel* in the inspector, in place; the selection is let go. */
+  const inspect = (sel: GridSel) => {
+    const ext = selectionExtent(sel, rows, cols);
+    inspectorCtx.open(owner, {
+      stepName, color: edge, formula, refId,
+      what: describeGridSel(sel, rows, cols),
+      rows: ext.rows, cols: ext.cols, cells: gridData,
+      sel, wholeColumns: takesWholeColumns(sel),
+    });
+    setSelection({ sel: null, of: cells });
+  };
+
+  /** The selection's header tab. */
+  const openInspector = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (shownSel) inspect(shownSel);
+  };
+
+  /**
+   * A click on a cell (the index's too): a plain click opens it in the
+   * inspector, in place; Shift and ⌘/Ctrl select, as they always have; the
+   * click that ends a drag does nothing more.
+   */
+  const clickCell = (row: number, col: string, e: React.MouseEvent) => {
+    if (e.shiftKey || e.metaKey || e.ctrlKey || dragEnded.current) {
+      select({ kind: 'cell', row, col }, e);
+      return;
+    }
+    lastCell.current = { row, col };
+    const sel = applyGridPick(null, { kind: 'cell', row, col }, { extend: false, toggle: false }, rows, cols);
+    if (sel) inspect(sel);
+  };
+
+  // While a selection is inspected, it is marked in the grid: a dashed
+  // outline and a light shade in the step's colour, and the inspector icon
+  // on its corner (a click on it brings the inspector back).
+  const inspected = inspectorCtx.inspectors.filter((i) => i.owner === owner);
+  const inspectedKey = inspected.map((i) => `${i.id}:${i.sel.cells.join(',')}:${i.sel.headers.join(',')}`).join('|');
+  const [marks, setMarks] = useState<Mark[]>([]);
+  useLayoutEffect(() => {
+    const place = () => {
+      const next: Mark[] = [];
+      for (const i of inspected) {
+        const tl = selectionTopLeft(i.sel, rows, cols);
+        const br = selectionBottomRight(i.sel, rows, cols);
+        const a = tl && elementAt(tl.row, tl.col);
+        const b = br && elementAt(br.row, br.col);
+        if (!a || !b) continue;
+        next.push({
+          id: i.id, left: a.offsetLeft, top: a.offsetTop,
+          width: b.offsetLeft + b.offsetWidth - a.offsetLeft, height: b.offsetTop + b.offsetHeight - a.offsetTop,
+        });
+      }
+      setMarks((prev) => (JSON.stringify(prev) === JSON.stringify(next) ? prev : next));
+    };
+    place();
+    if (typeof ResizeObserver === 'undefined' || !gridRef.current) return;
+    const ro = new ResizeObserver(place);
+    ro.observe(gridRef.current);
+    return () => ro.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inspectedKey, shape]);
 
   // ── Wiring: picks ───────────────────────────────────────────────────────
   // A click while a later step's formula bar has focus picks data for it:
@@ -334,7 +419,7 @@ export default function DataOutputGrid({
 
   const handleCellWireClick = (cell: Cell, e: React.MouseEvent) => {
     if (wiringMode) return;            // single cells: later (needs rows AND columns)
-    select({ kind: 'cell', row: cell.row_id, col: cell.column_id }, e);
+    clickCell(cell.row_id, cell.column_id, e);
     onCellClick?.(cell);
   };
 
@@ -350,7 +435,7 @@ export default function DataOutputGrid({
     if (!wiringMode) select({ kind: 'index' }, e);
   };
   const handleIndexCellClick = (row: number, e: React.MouseEvent) => {
-    if (!wiringMode) select({ kind: 'cell', row, col: INDEX_COL }, e);
+    if (!wiringMode) clickCell(row, INDEX_COL, e);
   };
 
 
@@ -497,14 +582,38 @@ export default function DataOutputGrid({
             className="sel-tab"
             style={{ left: tabAt.left, top: tabAt.top, height: TAB_H, background: edge, color: textOn(edge) }}
             aria-label="Open the selection"
-            title="Open the selection: its expression, state, inputs and outputs"
-            onClick={openPopover}
+            title="Inspect: its expression, state, inputs and outputs"
+            onClick={openInspector}
             onMouseDown={(e) => e.stopPropagation()}
           >
+            <SymbolIcon name="frame_inspect" size={12} />
             {describeGridSel(shownSel, rows, cols)}
-            <span className="sel-tab-chevron" aria-hidden="true">▾</span>
           </button>
         )}
+        {marks.map((m) => (
+          <div
+            key={m.id}
+            className="inspected-mark"
+            style={{ left: m.left, top: m.top, width: m.width, height: m.height, borderColor: edge, background: withAlpha(edge, 0.08) }}
+          >
+            <button
+              type="button"
+              className="inspected-mark-icon"
+              style={{ color: edge }}
+              aria-label="Show its inspector"
+              title="Being inspected · show its inspector"
+              onClick={(e) => {
+                e.stopPropagation();
+                const i = inspected.find((x) => x.id === m.id);
+                if (i?.mode === 'minimized') inspectorCtx.restore(m.id);
+                else inspectorCtx.raise(m.id);
+              }}
+              onMouseDown={(e) => e.stopPropagation()}
+            >
+              <SymbolIcon name="frame_inspect" size={13} />
+            </button>
+          </div>
+        ))}
         {shownSel && handleAt && (
           <span
             className="sel-handle"
@@ -614,7 +723,7 @@ export default function DataOutputGrid({
                   onMouseDown={(e) => startDrag({ kind: 'cell', row: r, col: c }, e)}
                   onClick={(e) => {
                     if (cell) handleCellWireClick(cell, e);
-                    else if (looking) select({ kind: 'cell', row: r, col: c }, e);
+                    else if (looking) clickCell(r, c, e);
                   }}
                   title={cell?.cell_type ? (cell.summary ?? cell.display_value) : (cell?.display_value ?? '')}
                   style={{ ...wiringCellStyle(cellKey, c), ...outline(r, c) }}
@@ -640,26 +749,6 @@ export default function DataOutputGrid({
           </div>
         ))}
       </div>
-      {popovers.map((p) => {
-        const ext = selectionExtent(p.sel, rows, cols);
-        return (
-          <SelectionPopover
-            key={p.id}
-            stepName={stepName}
-            color={stepColor}
-            formula={formula}
-            what={describeGridSel(p.sel, rows, cols)}
-            at={p.at}
-            rows={ext.rows}
-            cols={ext.cols}
-            cells={gridData}
-            isSelected={(row, col) => inGridSel(p.sel, row, col)}
-            refId={refId}
-            wholeColumns={takesWholeColumns(p.sel)}
-            onClose={() => setPopovers((ps) => ps.filter((q) => q.id !== p.id))}
-          />
-        );
-      })}
     </div>
   );
 }

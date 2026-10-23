@@ -22,6 +22,7 @@ import { nextUntitledName } from '../utils/workflowNames';
 import { StepWiringProvider } from '../context/StepWiringContext';
 import { StepsStatusProvider } from '../context/StepsStatusContext';
 import StepsStatusText from './StepsStatusText';
+import InspectorChips from './InspectorChips';
 import ResourcesMenu from './ResourcesMenu';
 import BarChevrons from './BarChevrons';
 import WorkflowOverview from './WorkflowOverview';
@@ -708,6 +709,8 @@ export default function MainLayout() {
         />
         <span className="steps-footer__title">Steps</span>
       </div>
+      {/* Minimized selection inspectors: click one to put it back. */}
+      <InspectorChips />
       {/* Bottom right: what the pointer is over, or what's being selected. */}
       <StepsStatusText />
     </div>

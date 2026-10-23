@@ -5,6 +5,8 @@ import BarChevrons from './BarChevrons';
 import { useConsole } from '../context/ConsoleContext';
 import type { WorkflowCommand } from '../types/commands';
 import './ExecutionLog.css';
+import SymbolIcon from './SymbolIcon';
+import type { SymbolName } from './SymbolIcon';
 
 export type LogLevel = 'info' | 'warn' | 'error' | 'success' | 'debug';
 
@@ -65,12 +67,13 @@ interface ExecutionLogProps {
   consoleStepMap?: () => Record<string, string>;
 }
 
-const LEVEL_ICONS: Record<LogLevel, string> = {
-  info: 'ℹ️',
-  warn: '⚠️',
-  error: '❌',
-  success: '✅',
-  debug: '🔍',
+/** Each level's icon (Material Symbols, never emoji), in its level's colour. */
+const LEVEL_ICONS: Record<LogLevel, SymbolName> = {
+  info: 'info',
+  warn: 'warning',
+  error: 'error',
+  success: 'check_circle',
+  debug: 'bug_report',
 };
 
 const LEVEL_COLORS: Record<LogLevel, string> = {
@@ -322,7 +325,7 @@ export default function ExecutionLog({
               Auto-scroll
             </label>
             <button className="log-clear-btn" onClick={onClear} title="Clear all logs">
-              🗑️ Clear
+              <SymbolIcon name="delete" size={13} /> Clear
             </button>
           </>
         )}
@@ -334,8 +337,8 @@ export default function ExecutionLog({
         >
           {isFloating ? '⤓' : '⧉'}
         </button>
-        <button className="log-close-btn" onClick={onClose} title="Close">
-          ✕
+        <button className="log-close-btn" onClick={onClose} title="Close" aria-label="Close log">
+          <SymbolIcon name="close" size={14} />
         </button>
       </div>
     </div>
@@ -371,7 +374,7 @@ export default function ExecutionLog({
           >
             <div className="log-entry-main">
               <span className="log-time">{formatTime(entry.timestamp)}</span>
-              <span className="log-icon">{LEVEL_ICONS[entry.level]}</span>
+              <span className="log-icon" style={{ color: LEVEL_COLORS[entry.level] }}><SymbolIcon name={LEVEL_ICONS[entry.level]} size={13} /></span>
               {entry.stepLabel && (
                 <span className="log-step-badge" style={{ borderColor: LEVEL_COLORS[entry.level] }}>
                   {entry.stepLabel}

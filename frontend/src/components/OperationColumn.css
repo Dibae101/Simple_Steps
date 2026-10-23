@@ -1126,7 +1126,35 @@
 
 .sel-tab:hover { filter: brightness(0.92); }
 .sel-tab:focus-visible { outline: 2px solid #1d4ed8; outline-offset: 1px; }
-.sel-tab-chevron { font-size: 9px; opacity: 0.8; }
+.sel-tab .symbol-icon { flex: none; }
+
+/* A selection that is being inspected (SelectionInspector): a dashed outline
+   and a light shade in the step's colour (set inline), the inspector icon on
+   its top-right corner. */
+.inspected-mark {
+  position: absolute;
+  z-index: 2;
+  border: 1.5px dashed;
+  pointer-events: none;
+}
+
+.inspected-mark-icon {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.12);
+  cursor: pointer;
+  pointer-events: auto;
+}
 
 /* The selection's drag handle: a dot centred on the box's bottom-right
    corner, as in Excel; drag it to resize the selection. */

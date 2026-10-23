@@ -3,6 +3,7 @@ import type { Step } from '../types/models';
 import type { OperationDefinition } from '../services/api';
 import OperationColumn from './OperationColumn';
 import './DetachedStepWindow.css';
+import SymbolIcon from './SymbolIcon';
 
 type SnapZone = 'left' | 'right' | 'top' | null;
 
@@ -285,14 +286,14 @@ export default function DetachedStepWindow({
               title={maximized ? 'Restore window' : 'Maximize window'}
               onClick={toggleMaximize}
             >
-              {maximized ? '❐' : '⛶'}
+              <SymbolIcon name={maximized ? 'close_fullscreen' : 'open_in_full'} size={13} />
             </button>
             <button
               className="dsw-btn dsw-btn-close"
               title="Close detached window"
               onClick={onClose}
             >
-              ✕
+              <SymbolIcon name="close" size={14} />
             </button>
           </div>
         </div>

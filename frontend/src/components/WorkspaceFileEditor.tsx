@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import FileTree from './FileTree';
 import { readWorkspaceFile, writeWorkspaceFile } from '../services/api';
 import './WorkspaceFileEditor.css';
+import SymbolIcon from './SymbolIcon';
 
 interface WorkspaceFileEditorProps {
   isOpen: boolean;
@@ -89,7 +90,7 @@ export default function WorkspaceFileEditor({ isOpen, onClose }: WorkspaceFileEd
       <div className="workspace-editor-panel">
         <div className="workspace-editor-header">
           <div className="workspace-editor-title">Project File Editor</div>
-          <button className="workspace-editor-close" onClick={handleRequestClose}>✕</button>
+          <button className="workspace-editor-close" onClick={handleRequestClose} aria-label="Close" title="Close"><SymbolIcon name="close" size={14} /></button>
         </div>
 
         <div className="workspace-editor-body">

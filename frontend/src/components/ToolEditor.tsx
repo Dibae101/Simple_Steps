@@ -15,6 +15,7 @@ import {
 } from '../utils/formulaParts';
 import { effectiveSettings, pyLiteral } from '../utils/resources';
 import './ToolEditor.css';
+import SymbolIcon from './SymbolIcon';
 
 /**
  * The step's formula as a form, inside the Formula widget:
@@ -178,7 +179,7 @@ export default function ToolEditor({
 
       {warning && (
         <div className="te-warning" role="status" title={warning}>
-          <span aria-hidden="true">⚠</span> {warning}
+          <SymbolIcon name="warning" size={13} /> {warning}
         </div>
       )}
 

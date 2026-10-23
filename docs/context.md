@@ -146,6 +146,12 @@ time.
   land**, one small piece at a time (what changed in core, what it means for
   users, the exact edit). Record what was confirmed in the dev plan
   (e.g. `docs/dev_plan/124` → Progress).
+- **Icons are Google Material Symbols (Outlined), never emoji** (owner,
+  2026-10-22: emoji make the tool look dated). In the UI use
+  `frontend/src/components/SymbolIcon.tsx`; add an icon by copying its path
+  from `fonts.gstatic.com/s/i/short-term/release/materialsymbolsoutlined/<name>/default/24px.svg`
+  (bundled inline, so the desktop app works offline). No emoji in UI text,
+  labels, log levels or messages either.
 
 ## Known red
 - `tests/test_tabular_selection.py::test_select_cell` fails with `KeyError: 0` —

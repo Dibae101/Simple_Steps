@@ -1,0 +1,221 @@
+/* The selection inspector (spec 014 §8): a header bar in the step's colour
+   (the pull-off bar, its window controls at the right end), the enlarged
+   data, and a thin side on each edge for the wiring: inputs left, outputs
+   right. Kept quiet so the data is what's seen. Resizes from its corner. */
+
+.si-frame {
+  position: fixed;
+  display: flex;
+  flex-direction: column;
+  min-width: 200px;
+  min-height: 60px;
+  max-width: calc(100vw - 16px);
+  max-height: calc(100vh - 16px);
+  background: #fff;
+  color: #222;
+  border: 1px solid var(--si-color, #888);
+  border-radius: 3px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+  font-size: 13px;
+  overflow: hidden;
+  resize: both;
+}
+
+/* Until resized, a selection keeps to a comfortable size. */
+.si-frame:not(.si-display):not(.si-maximized) { max-width: min(760px, calc(100vw - 16px)); max-height: min(70vh, calc(100vh - 16px)); }
+.si-frame.si-docked { box-shadow: 0 4px 14px rgba(0, 0, 0, 0.16); }
+.si-frame.si-floating { box-shadow: 0 10px 28px rgba(0, 0, 0, 0.26); }
+
+/* Expanded over the whole window (Esc restores). */
+.si-frame.si-maximized {
+  inset: 16px;
+  width: auto !important;
+  height: auto !important;
+  max-width: none;
+  max-height: none;
+  resize: none;
+}
+
+/* Header bar: the step's colour; drag to pull off, click to expand. */
+.si-header {
+  flex: none;
+  padding: 2px 4px 2px 8px;
+  font-size: 11px;
+  line-height: 18px;
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+
+.si-header:active { cursor: grabbing; }
+.si-maximized .si-header { cursor: default; }
+
+.si-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.si-title > .symbol-icon { flex: none; opacity: 0.9; }
+.si-step { font-weight: 700; }
+.si-what { min-width: 0; opacity: 0.9; overflow: hidden; text-overflow: ellipsis; }
+
+/* Window controls, at the header's right end. */
+.si-controls { margin-left: auto; display: inline-flex; align-items: center; gap: 1px; flex: none; }
+
+.si-header-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: 2px;
+  background: transparent;
+  color: inherit;
+  opacity: 0.8;
+  cursor: pointer;
+}
+
+.si-header-btn:hover:not(:disabled) { opacity: 1; background: rgba(0, 0, 0, 0.14); }
+.si-header-btn:disabled { opacity: 0.35; cursor: default; }
+.si-header-btn:focus-visible { outline: 2px solid #fff; outline-offset: -2px; }
+
+/* Expanded: everything, wrapped — nothing cut short. */
+.si-expanded .si-title { white-space: normal; flex-wrap: wrap; }
+.si-expanded .si-what { overflow: visible; }
+
+.si-detail { padding: 3px 0 2px 20px; }
+
+.si-expression {
+  display: block;
+  font-family: Menlo, Monaco, Consolas, monospace;
+  font-size: 11px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.si-state { margin-top: 2px; opacity: 0.85; }
+.si-state-failed { font-weight: 600; }
+
+/* The data, between its two sides. */
+.si-main {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+}
+
+.si-content {
+  flex: 1;
+  min-width: 0;
+  overflow: auto;            /* a big selection scrolls inside its frame */
+}
+
+/* An interactive display (chart, image, table) fills the inspector, at
+   whatever size it is resized to. */
+.si-display .si-content { display: flex; overflow: hidden; }
+.si-display .si-content > .cv-embedded { flex: 1; min-width: 0; min-height: 0; }
+.si-display .cv-embedded .cv-body { flex: 1; min-height: 0; }
+.si-display .cv-embedded .cv-plotly { height: 100%; min-height: 0; }
+
+/* Each side: a thin strip for the wiring toggle — inputs left, outputs right. */
+.si-side {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 4px 1px;
+  background: #fafafa;
+}
+
+.si-side-left { border-right: 1px solid #eee; }
+.si-side-right { border-left: 1px solid #eee; }
+
+.si-side-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 22px;
+  padding: 0 2px;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: #666;
+  cursor: pointer;
+}
+
+.si-side-btn:hover:not(:disabled) { background: #ececec; color: #111; }
+.si-side-btn:disabled { color: #bbb; cursor: default; }
+.si-side-btn:focus-visible { outline: 2px solid #1d4ed8; outline-offset: 1px; }
+.si-arrow { font-size: 11px; line-height: 1; }
+
+/* One cell: its value alone, enlarged, whole (long text wraps, scrolls). */
+.si-value {
+  padding: 10px 12px;
+  font-size: 15px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+  user-select: text;
+}
+
+.si-value.si-error { background: #fdeceb; color: #b42318; }
+
+.si-table { border-collapse: collapse; font-size: 14px; }
+
+.si-table th,
+.si-table td {
+  padding: 5px 10px;
+  border: 1px solid #ececec;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.si-table thead th { background: #f3f3f3; color: #555; position: sticky; top: 0; }
+.si-table .si-index { background: #f7f7f7; color: #888; font-weight: 600; text-align: right; }
+.si-table .si-unselected { background: #fafafa; }
+.si-table .si-error { background: #fdeceb; color: #b42318; }
+
+/* Minimized inspectors, as chips on the steps bar (InspectorChips). */
+.inspector-chips {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  overflow-x: auto;
+  margin: 0 8px;
+}
+
+.inspector-chip {
+  display: inline-flex;
+  align-items: center;
+  max-width: 220px;
+  height: 18px;
+  border-radius: 3px;
+  font-size: 11px;
+  overflow: hidden;
+}
+
+.inspector-chip-open,
+.inspector-chip-close {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 100%;
+  margin: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.inspector-chip-open { padding: 0 4px 0 6px; min-width: 0; }
+.inspector-chip-open span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.inspector-chip-close { padding: 0 4px; opacity: 0.8; }
+.inspector-chip-close:hover,
+.inspector-chip-open:hover { filter: brightness(0.92); }
+.inspector-chip-close:hover { opacity: 1; }

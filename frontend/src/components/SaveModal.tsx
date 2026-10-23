@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import type { ProjectInfo } from '../services/api';
 import { uniqueWorkflowName, workflowNameTaken } from '../utils/workflowNames';
 import './SaveModal.css';
+import SymbolIcon from './SymbolIcon';
 
 interface SaveModalProps {
   isOpen: boolean;
@@ -99,7 +100,7 @@ export default function SaveModal({
       <div className="modal-dialog" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
           <span className="modal-title">{title}</span>
-          <button className="modal-close-btn" onClick={onClose}>✕</button>
+          <button className="modal-close-btn" onClick={onClose} aria-label="Close" title="Close"><SymbolIcon name="close" size={14} /></button>
         </div>
 
         <div className="modal-body">
