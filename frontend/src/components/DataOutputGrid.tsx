@@ -2,7 +2,7 @@ import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 're
 import { isErrorCell } from '../utils/errorCells';
 import type { GridPick, Selection } from '../utils/selection';
 import {
-  INDEX_COL, applyGridPick, cellKey, describeGridSel, inGridSel, selectionEdges, selectionExtent,
+  INDEX_COL, applyGridPick, cellKey, describeGridSel, drawnIn, inGridSel, selectionEdges, selectionExtent,
   selectionBottomRight, selectionTopLeft, takesWholeColumns,
 } from '../utils/gridSelection';
 import type { GridSel, GridSelPick } from '../utils/gridSelection';
@@ -271,6 +271,13 @@ function Grid({
   const topLeftKey = topLeft ? cellKey(topLeft.row, topLeft.col) : null;
   /** The grid's shape, as a value: a new rows/cols array with the same contents isn't a change. */
   const shape = `${rows.length}|${cols.join('\u0001')}`;
+  // A box that starts at the header row has nothing above it inside the grid
+  // (the Data bar is flush on top), so its tab sits inside the box instead:
+  // a small icon at the header row's right end.
+  const tabInside = topLeft?.row === -1;
+  const topRightCol = tabInside
+    ? [INDEX_COL, ...cols].reverse().find((c) => drawnIn(shownSel, -1, c, cols)) ?? null : null;
+  const tabKey = tabInside ? (topRightCol === null ? null : cellKey(-1, topRightCol)) : topLeftKey;
   const [tabAt, setTabAt] = useState<{ left: number; top: number } | null>(null);
   // The drag handle — a dot on the box's bottom-right corner, as in Excel.
   // Dragging it resizes the selection from its top-left corner. Only for
@@ -282,15 +289,17 @@ function Grid({
   const [handleAt, setHandleAt] = useState<{ left: number; top: number } | null>(null);
   useLayoutEffect(() => {
     const grid = gridRef.current;
-    if (!grid || !topLeftKey) { setTabAt(null); setHandleAt(null); return; }
+    if (!grid || !tabKey) { setTabAt(null); setHandleAt(null); return; }
     const find = (key: string | null) => (key === null ? undefined
       : Array.from(grid.querySelectorAll<HTMLElement>('[data-sel-key]')).find((c) => c.dataset.selKey === key));
     // Only a real move re-renders: placing runs after every layout change.
     const same = (a: { left: number; top: number } | null, b: { left: number; top: number } | null) =>
       a?.left === b?.left && a?.top === b?.top;
     const place = () => {
-      const tl = find(topLeftKey);
-      const tab = tl ? { left: tl.offsetLeft, top: tl.offsetTop - TAB_H } : null;
+      const at = find(tabKey);
+      const tab = !at ? null
+        : tabInside ? { left: at.offsetLeft + at.offsetWidth - 3, top: at.offsetTop + 3 }
+          : { left: at.offsetLeft, top: at.offsetTop - TAB_H };
       setTabAt((prev) => (same(prev, tab) ? prev : tab));
       const br = find(bottomRightKey);
       const dot = br ? { left: br.offsetLeft + br.offsetWidth, top: br.offsetTop + br.offsetHeight } : null;
@@ -301,7 +310,7 @@ function Grid({
     const ro = new ResizeObserver(place);
     ro.observe(grid);
     return () => ro.disconnect();
-  }, [topLeftKey, bottomRightKey, shape]);
+  }, [tabKey, tabInside, bottomRightKey, shape]);
 
   /** Press on the drag handle: resize from the box's top-left corner. */
   const startHandleDrag = (e: React.MouseEvent) => {
@@ -579,15 +588,15 @@ function Grid({
         {shownSel && tabAt && (
           <button
             type="button"
-            className="sel-tab"
+            className={`sel-tab${tabInside ? ' sel-tab-inside' : ''}`}
             style={{ left: tabAt.left, top: tabAt.top, height: TAB_H, background: edge, color: textOn(edge) }}
             aria-label="Open the selection"
-            title="Inspect: its expression, state, inputs and outputs"
+            title={`Inspect ${describeGridSel(shownSel, rows, cols)}: its expression, state, inputs and outputs`}
             onClick={openInspector}
             onMouseDown={(e) => e.stopPropagation()}
           >
             <SymbolIcon name="frame_inspect" size={12} />
-            {describeGridSel(shownSel, rows, cols)}
+            {!tabInside && describeGridSel(shownSel, rows, cols)}
           </button>
         )}
         {marks.map((m) => (

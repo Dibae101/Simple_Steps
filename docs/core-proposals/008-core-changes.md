@@ -113,6 +113,24 @@ Also new in core: editing a step that has run keeps its output, stale, with a
 reason (`meta["stale_reason"]`: `updated args`, …), and `wf.arg_changes(step)`
 says what it was computed with. The app uses these from dev_plan/124 phase 2.
 
+## At 86170a3 (2026-10-23)
+
+The app moved to `86170a3` (`#` row numbers, column numbers, `cols["#"]`,
+`wf["p"].header`) with the owner. Phase 2 runs every core step in one core
+`Workflow` per session and saves it whole between uses with
+`to_session_dict()` / `Workflow.from_dict()` (`kernels.py`, then named `session_workflow.py`) —
+checked by running: restored, nothing recomputes, row links and staleness
+hold. New asks, each found by running core at `86170a3`:
+
+| # | Ask | Evidence |
+|---|---|---|
+| **C28** | `wf["p"].header[k]` either picks one column name or is refused | `wf["p"].header[1]` on columns `city, n` returns **both** names (`{'name': ['city', 'n']}`): the `[1]` is ignored, silently. `header[cols["n"]]` is refused, which is fine |
+| **C29** | `to_session_dict()` on an image-array payload gives a clear refusal, or saves it | the `swatches` step (one numpy array per row) raises `ValueError: can only convert an array of size 1 to a Python scalar` from `_encode_output` — a crash, not a message |
+| **C30** | A session export that saves what it can: per step, so one unsaveable payload doesn't lose every output | a `Figure` payload is refused by design (*"Object payloads persist only as handles or as something with a to_json"*), and that refusal fails the whole `to_session_dict()`. The app then saves the steps only (`to_dict()`), so every step of that workflow re-runs after a restore. Ask: e.g. `to_session_dict(skip_unsaveable=True)` returning which steps it skipped |
+| **C31** | A `mod.table()` tool that returns a list is refused or wrapped, not stored as `None` | `colnames[mod.table()](wf["r"])` returning `['city', 'n', 'm']` stored `{'value': [None]}`; returning a one-column DataFrame works |
+| **C32** | A pluggable payload store for the session export (core's own P1: `Output.ref` + a store backend, with codecs) | replaces C29/C30. The app wants outputs as files beside the workflow — parquet for tables, PNG / Plotly JSON for objects, named by version — and a loader on `Workflow.from_dict(…, outputs=loader)` (`docs/system_design/11-data-flow-and-storage.md`) |
+| **C33** | A grid `Session` with per-workflow **kernels** (core's P5), in the app's words: a **session** is a user's area (as core's `Session` already is); a **kernel** is one workflow, live — its `Workflow`, outputs, versions; a **kernel manager** keeps some live and puts others away. A kernel offers: `Operation.from_source(text)` (the inverse of `to_source`), run a step with its never-run inputs first, step-ran / stale callbacks, save / restore through C32 | the app built this in `src/SIMPLE_STEPS/kernels.py` (`Kernel`) on public core API; core refuses "reads 'r', which has not run. Run 'r' first", has no parser (no `ast` in the package), and no change notifications — so every front end (the app, a CLI REPL, a notebook) rebuilds them |
+
 ## The goal: the app imports core's grid and nothing else
 
 The app should use only `simple_steps_core.grid`'s public functions. Each

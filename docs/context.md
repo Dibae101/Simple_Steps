@@ -104,6 +104,9 @@ time.
 - Changes requested of core: `docs/core-proposals/`
 - What was removed and what is staged for removal: `docs/cleanup-map.md`
 - Architecture as built: `docs/dev_plan/` (its README marks it active)
+- System design on core — object model, data flow and storage, what core
+  owns vs this repo: `docs/system_design/10-object-model.md`,
+  `11-data-flow-and-storage.md`, `12-core-and-app.md`
 - The shipped examples, and how they check themselves: `src/SIMPLE_STEPS/examples/README.md`
 
 ## Commands

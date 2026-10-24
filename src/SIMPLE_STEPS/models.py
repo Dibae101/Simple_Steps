@@ -303,6 +303,18 @@ class StepRunRequest(BaseModel):
     # The workflow's `resources` section — declarations (type + literal
     # settings), never objects. The server keeps the live objects per session.
     resources: Optional[Dict[str, Any]] = None
+    # The whole workflow — every step's {id, name, formula, ref} — and which
+    # workflow it is. With them a core-syntax step runs in the session's one
+    # core workflow: its kernel (kernels.py, dev_plan/124 phase 2).
+    workflow_key: Optional[str] = None
+    workflow_steps: Optional[List[Dict[str, Any]]] = None
+
+
+class WorkflowSyncRequest(BaseModel):
+    """Declare the workflow's steps without running them (after an edit)."""
+    workflow_key: str
+    workflow_steps: List[Dict[str, Any]]
+    resources: Optional[Dict[str, Any]] = None
 
 class StepRunResponse(BaseModel):
     status: Literal['success', 'failed']

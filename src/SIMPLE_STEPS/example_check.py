@@ -71,6 +71,9 @@ class Example:
         _configure_environment(self.app)
         with contextlib.redirect_stdout(io.StringIO()):
             import SIMPLE_STEPS.main  # noqa: F401  — configures the server for this App
+        # Checks are throwaway: don't save their workflows' kernels to disk.
+        from . import kernels
+        kernels.PERSIST = False
         self.workspace = Path(self.app.workspace)
         self.passed = self.failed = self.skipped = 0
 
@@ -99,6 +102,9 @@ class Example:
         runs: Dict[str, StepRun] = {}
         refs: Dict[str, str] = {}
         previous = None
+        # Like the UI: every request carries the whole workflow, so its core
+        # steps run in the workflow's kernel (kernels.py).
+        key = f"{project}/{name}"
         for step in saved["steps"]:
             name_, expression = step["name"], step["expression"]
             run = runs[name_] = StepRun(name_, expression)
@@ -111,6 +117,8 @@ class Example:
                     ref, run.metrics = run_operation(
                         parsed.get("operationId"), parsed.get("args") or {}, previous,
                         step_map, False, formula, name_, SESSION, None, resources,
+                        key, [{"name": s["name"], "formula": "=" + s["expression"], "ref": refs.get(s["name"])}
+                              for s in saved["steps"]],
                     )
             except Exception as exc:          # the step refused or failed: say why
                 run.error = str(exc)

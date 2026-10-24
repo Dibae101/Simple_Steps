@@ -7,8 +7,11 @@ import { runStep as runStepApi, fetchDataView, getOperations,
   listPipelines, loadPipeline, savePipeline, deletePipeline,
   listenProgress,
   fetchDataMeta,
+  syncWorkflow,
 } from '../services/api';
-import type { OperationDefinition, PipelineFile, BackendError, ProgressEvent } from '../services/api';
+import type {
+  OperationDefinition, PipelineFile, BackendError, ProgressEvent, WorkflowStepDecl, WorkflowStepState,
+} from '../services/api';
 import { parseFormula, buildFormula } from '../utils/formulaParser';
 import { errorCell, withRowErrors } from '../utils/errorCells';
 import { columnsToShow } from '../utils/stepColumns';
@@ -182,6 +185,79 @@ export default function useWorkflow() {
   useEffect(() => {
     workflowRef.current = workflow;
   }, [workflow]);
+
+  // ── The session's core workflow (dev_plan/124 phase 2) ─────────────────
+  // Every run carries the whole workflow, so its core-syntax steps run in one
+  // core workflow on the server: row links carry from step to step, and core
+  // says which steps an edit has made out of date. After an edit the steps
+  // are synced (declared, nothing run) to learn that straight away.
+  const workflowKey = () => workflowRef.current.id || 'untitled';
+  const workflowDecl = (): WorkflowStepDecl[] => workflowRef.current.steps.map((s) => ({
+    id: s.id, name: s.label, formula: s.formula ?? '', ...(s.outputRefId ? { ref: s.outputRefId } : {}),
+  }));
+  /** Mark each step out of date, or not, as core says. */
+  const applyStepStates = useCallback((states?: Record<string, WorkflowStepState>) => {
+    if (!states) return;
+    const patch = (wf: Workflow): Workflow => ({
+      ...wf,
+      steps: wf.steps.map((s) => {
+        const state = states[s.label];
+        const staleReason = state?.status === 'stale' && s.outputRefId
+          ? (state.stale_reason || 'an earlier step changed') : undefined;
+        return staleReason === s.staleReason ? s : { ...s, staleReason };
+      }),
+    });
+    workflowRef.current = patch(workflowRef.current);
+    setWorkflow(patch);
+  }, []);
+  /**
+   * Show outputs the server produced or kept that the UI doesn't have yet —
+   * steps run first because a later one read them, or a reopened workflow's
+   * saved outputs — by step name.
+   */
+  const showOutputs = useCallback(async (outputs?: Record<string, string>) => {
+    for (const [name, ref] of Object.entries(outputs ?? {})) {
+      const meta = await fetchDataMeta(ref);
+      const cells = await fetchDataView(ref) as Cell[];
+      const latest = workflowRef.current;
+      const next = latest.steps.map((s) => (s.label !== name ? s : {
+        ...s,
+        status: 'completed' as StepStatus,
+        outputRefId: ref,
+        outputRows: meta.rows,
+        outputColumns: meta.columns,
+        output_preview: cells,
+      }));
+      workflowRef.current = { ...latest, steps: next };
+      setWorkflow(workflowRef.current);
+    }
+  }, []);
+  const syncTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /**
+   * Sync the steps with the server, soon (edits come in bursts): after an
+   * edit, to learn which later steps are out of date; when a workflow becomes
+   * active, so its kernel comes back from disk with its outputs.
+   */
+  const scheduleSync = useCallback(() => {
+    if (syncTimer.current) clearTimeout(syncTimer.current);
+    syncTimer.current = setTimeout(() => {
+      syncTimer.current = null;
+      // A sync is a courtesy: if it fails, the next run reports any problem.
+      Promise.resolve()
+        .then(() => syncWorkflow(workflowKey(), workflowDecl(), workflowRef.current.resources))
+        .then(async ({ steps, outputs }) => {
+          await showOutputs(outputs);
+          applyStepStates(steps);
+        })
+        .catch(() => {});
+    }, 300);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [applyStepStates, showOutputs]);
+  // A workflow becoming active (a tab switch, one opened): bring its kernel back.
+  const activeWorkflowId = workflow.id;
+  useEffect(() => {
+    if (workflowRef.current.steps.some((s) => (s.formula ?? '').trim())) scheduleSync();
+  }, [activeWorkflowId, scheduleSync]);
 
   const resolveStepId = useCallback((name: string): string | null => {
     const steps = workflowRef.current.steps;
@@ -502,6 +578,8 @@ export default function useWorkflow() {
           // caused data leaks between concurrent users of the same file.
           undefined,
           workflowRef.current.resources,
+          workflowKey(),
+          workflowDecl(),
       );
 
           const stableMeta = await waitForStableOutput(res.output_ref_id, id, step.label, operationId);
@@ -579,6 +657,15 @@ export default function useWorkflow() {
         workflowRef.current = updated;
         setWorkflow(updated);
       }
+
+      // Steps this one reads that hadn't run in this session ran first, on
+      // the server: show their outputs too.
+      await showOutputs(res.metrics.outputs);
+      for (const name of Object.keys(res.metrics.outputs ?? {})) {
+        addLog('info', `Step "${name}" ran first: "${step.label}" reads it`, { stepLabel: name });
+      }
+      // Which steps are out of date now, as core sees it.
+      applyStepStates(res.metrics.steps);
       return 'completed';
     } catch (error) {
       const elapsed = Math.round(performance.now() - startTime);
@@ -897,6 +984,7 @@ export default function useWorkflow() {
     });
     workflowRef.current = drop(workflowRef.current);
     setWorkflow(drop);
+    scheduleSync();
     setExpandedStepIds(prev => {
         const next = new Set(prev);
         next.delete(id);
@@ -923,6 +1011,8 @@ export default function useWorkflow() {
     });
     workflowRef.current = patch(workflowRef.current);
     setWorkflow(patch);
+    // An edit can put later steps out of date: ask core which.
+    if (updates.formula !== undefined || updates.label !== undefined) scheduleSync();
   }
 
   // --- Persistence ---

@@ -118,8 +118,54 @@ interface StepRunResponse {
     uncaught_failed?: number;
     /** Core's warnings: the step is valid, but probably not what was meant. */
     warnings?: string[];
+    /** Every step's state in the session's core workflow (dev_plan/124 phase 2). */
+    steps?: Record<string, WorkflowStepState>;
+    /** Steps this one reads that hadn't run in this session, run first… */
+    also_ran?: string[];
+    /** …and their outputs, by step name. */
+    outputs?: Record<string, string>;
   };
   error?: string;
+}
+
+/** One step's state in the session's core workflow. */
+export interface WorkflowStepState {
+  /** completed, stale, staged, invalid, … */
+  status: string;
+  /** Why it is out of date: `input r changed`, `updated args`, `r is stale`. */
+  stale_reason: string | null;
+  problems: string[];
+}
+
+/** What the session's core workflow is told about each step. */
+export interface WorkflowStepDecl {
+  id: string;
+  name: string;
+  formula: string;
+  /** Its stored output, for a step the core workflow can't run itself. */
+  ref?: string;
+}
+
+/**
+ * Declare the workflow's steps in the session's core workflow without running
+ * anything (after an edit, or when a workflow becomes active), and learn every
+ * step's state — which later steps an edit has made out of date — plus refs
+ * for outputs the server has that the UI doesn't (a reopened workflow's).
+ */
+export async function syncWorkflow(
+  workflowKey: string,
+  steps: WorkflowStepDecl[],
+  resources?: Record<string, unknown>,
+): Promise<{ steps: Record<string, WorkflowStepState>; outputs: Record<string, string> }> {
+  const response = await fetch(`${API_BASE}/workflow/sync`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ workflow_key: workflowKey, workflow_steps: steps, resources: resources || null }),
+  });
+  if (!response.ok) throw new Error(`Backend Error: ${response.statusText}`);
+  const body = await response.json();
+  return { steps: body.steps ?? {}, outputs: body.outputs ?? {} };
 }
 
 /** Structured error returned by the backend when a step execution fails. */
@@ -250,8 +296,10 @@ export async function runStep(
     formula?: string,
     resultStore?: 'memory' | 'parquet',
     resources?: Record<string, unknown>,
+    workflowKey?: string,
+    workflowSteps?: WorkflowStepDecl[],
 ): Promise<StepRunResponse> {
-  
+
   const payload = {
       step_id: stepId,
       operation_id: operationId,
@@ -264,6 +312,10 @@ export async function runStep(
       // The workflow's `resources` section (declarations, never objects). A
       // formula naming res["…"] is checked and run against it.
       resources: resources || null,
+      // The whole workflow, so a core-syntax step runs in the session's one
+      // core workflow: row links and out-of-date marks carry across steps.
+      workflow_key: workflowKey ?? null,
+      workflow_steps: workflowSteps ?? null,
   };
 
   // Wire tap. This records the payload at the fetch boundary — the bytes that

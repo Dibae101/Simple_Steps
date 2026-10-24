@@ -12,6 +12,7 @@ from .models import (
     OperationDefinition,
     StepRunRequest,
     StepRunResponse,
+    WorkflowSyncRequest,
     DataViewRequest,
     ProjectInfo,
     PipelineFile,
@@ -799,6 +800,8 @@ async def execute_step(
             session_id,
             payload.result_store,
             payload.resources,
+            payload.workflow_key,
+            payload.workflow_steps,
         ))
         
         return StepRunResponse(
@@ -821,6 +824,31 @@ async def execute_step(
                 "step_id": payload.step_id,
             }
         )
+
+@app.post("/api/workflow/sync")
+async def sync_workflow(
+    payload: WorkflowSyncRequest,
+    session_id: str = Depends(get_session_id),
+):
+    """Declare the workflow's steps in the session's core workflow, running
+    nothing; returns every step's state, and refs for outputs the UI doesn't
+    have yet. Called after an edit, so the UI can mark later steps out of date,
+    and when a workflow becomes active, so a reopened one shows its saved
+    outputs (kernels.py, dev_plan/124 phase 2).
+    """
+    from . import kernels
+    from .engine import _normalize_session_id, save_dataframe
+    refs = {str(s.get("name")): s.get("ref") for s in payload.workflow_steps}
+    try:
+        return kernels.sync_only(
+            _normalize_session_id(session_id), payload.workflow_key, payload.workflow_steps,
+            payload.resources,
+            load=lambda name: get_value(refs[name], session_id=session_id) if refs.get(name) else None,
+            store=lambda frame: save_dataframe(frame, session_id=session_id),
+        )
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"detail": str(e)})
+
 
 # --- 2a. Step Progress SSE ---
 from .progress import get_progress

@@ -156,6 +156,13 @@
   text-transform: uppercase;
 }
 
+/* Out of date (core's staleness): the output stays, marked; hover says why. */
+.op-status-indicator.is-out-of-date {
+  opacity: 1;
+  color: #fbbf24;
+  cursor: help;
+}
+
 .step-header-maximize-btn {
   position: absolute;
   right: 34px;
@@ -743,7 +750,7 @@
 
 .output-container.grid-wrapper {
   overflow-x: auto;
-  padding: 16px 5px 5px 0;   /* room for a selection's header tab above, and its drag handle below and right */
+  padding: 0 5px 5px 0;      /* flush under the Data bar; room for a selection's drag handle below and right */
 }
 
 /* ── Wiring mode styles ──────────────────────────────────────────────────── */
@@ -1127,6 +1134,14 @@
 .sel-tab:hover { filter: brightness(0.92); }
 .sel-tab:focus-visible { outline: 2px solid #1d4ed8; outline-offset: 1px; }
 .sel-tab .symbol-icon { flex: none; }
+
+/* A box that starts at the header row: its tab is a small icon inside the
+   box, at the header row's right end (there's no room above it). */
+.sel-tab.sel-tab-inside {
+  transform: translateX(-100%);
+  padding: 0 3px;
+  border-radius: 3px;
+}
 
 /* A selection that is being inspected (SelectionInspector): a dashed outline
    and a light shade in the step's colour (set inline), the inspector icon on

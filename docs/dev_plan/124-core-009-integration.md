@@ -63,6 +63,39 @@
   toggles, which need phase 2; the status bar line for a selection
   (REQ-VIS-013 — shown in the grid footer for now).
 
+- **2026-10-23 — pin moved to `86170a3`** (core's `#` row numbers, column
+  numbers, `cols["#"]`, `wf["p"].header`), with the owner. On it, a loaded
+  table always gets its own `#` 0…n-1, so the app's per-step workflows lost
+  row links: a result computed after a sort and zipped back beside its
+  input paired the wrong rows, silently. Fixed by **phase 2, first slice**:
+  `session_workflow.py` (since renamed `kernels.py`) — one core `Workflow` per session for the active
+  workflow; each `/api/run` carries every step (`workflow_key`,
+  `workflow_steps`), unchanged formulas are left alone, inputs never run in
+  the session run first, renames keep outputs; `POST /api/workflow/sync`
+  declares without running and returns every step's state. The UI sends the
+  whole workflow on each run, syncs after an edit, and shows a step whose
+  input changed as **out of date** (core's reason as the tooltip). Literal
+  steps (`[1, 2]`, `{"x": 1}`) are declared in core as values; other
+  old-syntax steps still run on the old path and are loaded as tables.
+  Gate met: every example passes through it (sort-then-zip checked), backend
+  1 failed (known) / rest passed, frontend 149/149, `smoke_install` 20/20.
+  **Still to do in phase 2:** inactive tabs shown from saved outputs; cell
+  marks from `wf.preview` are phase 3.
+- **2026-10-23 — kernels** (owner: JupyterHub-like). A *kernel* is one live
+  workflow: its core `Workflow`, every step's output with its version and
+  reads, and the app's bookkeeping. Kernels are kept per (session,
+  workflow), `MAX_LIVE = 1` per session; opening another saves the least
+  recently used to disk (core's `to_session_dict()`), an idle one is saved
+  after `IDLE_SECONDS`, all are saved at shutdown, and asking for a saved one
+  restores it with `Workflow.from_dict()` — **nothing recomputes**: outputs,
+  versions, row links and staleness come back (checked by running: switch
+  A → B → A and a simulated restart, 0 tool calls). `/api/workflow/sync`
+  returns refs for outputs the UI lacks, and the UI syncs when a workflow
+  becomes active, so a reopened tab shows its outputs. When core can't save
+  an output (image arrays, Figures — asks C29, C30) the kernel is saved
+  without outputs and those steps re-run. Examples' checks don't persist.
+  This closes phase 2's "inactive tabs shown from saved outputs".
+
 ## Summary
 
 | Phase | What | Why first | Gate |

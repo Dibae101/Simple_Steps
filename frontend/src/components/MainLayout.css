@@ -178,7 +178,10 @@
   flex: 1 1 0;
   min-height: 0;
 }
-.console-region.is-collapsed { flex: 0 0 auto; }
+/* Collapsed, the console's title bar sits at the bottom of the page, the
+   empty space (center-filler) above it; expanded, it sits right under the
+   steps bar. Closed or popped out, the space below the steps bar is empty. */
+.console-region.is-collapsed { flex: 0 0 auto; order: 2; }
 .console-region > .execution-log-docked {
   flex: 1 1 0;
   min-height: 0;
@@ -186,6 +189,7 @@
 }
 .console-region.is-collapsed > .execution-log-docked { flex: 0 0 auto; }
 .center-filler {
+  order: 1;
   flex: 1 1 0;
   min-height: 0;
   background: transparent;

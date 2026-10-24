@@ -49,6 +49,12 @@ export interface Step {
   /** Rows of the last run that failed and nothing caught; they stop Run All (REQ-RUN-004). */
   uncaughtFailed?: number;
   /**
+   * Set when the step's output is out of date — something it reads changed
+   * since it ran — with core's reason (`input r changed`, `updated args`,
+   * `r is stale`). Its output stays; re-running brings it up to date.
+   */
+  staleReason?: string;
+  /**
    * The step's colour, chosen in its Settings (a CSS colour, e.g. `#22aa88`).
    * Unset = the palette colour for its position. Saved in the step's `meta`.
    */

@@ -308,7 +308,11 @@ export default function OperationColumn({
   // while it waits its turn in a running pipeline.
   const isRunning = step.status === 'running';
   const isQueued = !isRunning && isScheduledInPipeline;
-  const statusLabel = isQueued ? 'queued' : step.status;
+  // Out of date: something it reads changed since it ran (core's staleness,
+  // dev_plan/124 phase 2). Its output stays; the reason is the tooltip.
+  const outOfDate = !isRunning && !isQueued && step.status === 'completed' && !!step.staleReason;
+  const statusLabel = isQueued ? 'queued' : outOfDate ? 'out of date' : step.status;
+  const statusTitle = outOfDate ? `Out of date: ${step.staleReason}. Run it again to update.` : undefined;
   const statusSpinner = (isRunning || isQueued) && (
     <span className={`status-spinner${isQueued ? ' queued' : ''}`} aria-hidden="true" />
   );
@@ -441,7 +445,7 @@ export default function OperationColumn({
                 <>
                     <div className="header-titles">
                         <h3 className="op-name">{step.label}</h3>
-                        <span className="op-status-indicator">{statusSpinner}{statusLabel}</span>
+                        <span className={`op-status-indicator${outOfDate ? ' is-out-of-date' : ''}`} title={statusTitle}>{statusSpinner}{statusLabel}</span>
                     </div>
                 </>
             )}

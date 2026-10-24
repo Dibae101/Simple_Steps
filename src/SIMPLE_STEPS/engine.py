@@ -751,12 +751,20 @@ def run_operation(
     session_id: Optional[str] = None,
     result_store: Optional[str] = None,
     resources: Optional[Dict[str, Any]] = None,
+    workflow_key: Optional[str] = None,
+    workflow_steps: Optional[list] = None,
 ) -> tuple[str, dict]:
     """
     Orchestrates the running of a single step with dynamic wrappers.
 
     *resources* is the workflow's ``resources`` section, used by formulas in
     core's syntax that name ``res["…"]``.
+
+    *workflow_steps* is every step of the workflow (``[{name, formula, ref}]``)
+    and *workflow_key* which workflow it is. With them, a formula in core's
+    syntax runs in the workflow's kernel (``kernels``) — one core workflow — so
+    row links and staleness carry across steps; without them it runs alone,
+    as before.
     """
     
     step_map = step_label_map or {}
@@ -771,6 +779,23 @@ def run_operation(
     # derived from it don't matter: the formula is the whole definition.
     if formula:
         from .operation_formula import is_canonical
+        if is_canonical(formula) and workflow_steps is not None and step_id:
+            from . import kernels
+            from .resources import live_resource
+            refs = {str(s.get("name")): s.get("ref") for s in workflow_steps}
+            # The UI sends a step's id; formulas (and core) name steps.
+            name = next((str(s["name"]) for s in workflow_steps
+                         if s.get("id") == step_id or s.get("name") == step_id), step_id)
+            try:
+                return kernels.run_step(
+                    _normalize_session_id(session_id), workflow_key or "", workflow_steps, name,
+                    resources,
+                    load=lambda name: get_value(refs[name], session_id=session_id) if refs.get(name) else None,
+                    live=lambda name, decl: live_resource(session_id, name, decl),
+                    store=lambda frame: save_dataframe(frame, session_id=session_id, store_mode=result_store),
+                )
+            except Exception as e:
+                raise ValueError(f"Error executing step: {e}") from e
         if is_canonical(formula):
             from .grid_runner import run_canonical_step
             try:

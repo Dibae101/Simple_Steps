@@ -4,7 +4,23 @@ Developer documentation describing the internal architecture and design of Simpl
 
 These documents are intended for contributors, maintainers, and anyone building on top of the platform. They explain *how* the system works, *why* key decisions were made, and *where* the important boundaries live.
 
-## Documents
+## Current (on simple-steps-core)
+
+Start here. These describe the system as built on `simple-steps-core`
+(2026-10-23, core `86170a3`).
+
+| Document | Description |
+|---|---|
+| [Object Model](./10-object-model.md) | Every object, core's and the app's — workflow, step, operation, output, kernel, cell — and how formula text becomes a grid |
+| [Data Flow & Storage](./11-data-flow-and-storage.md) | Where data lives and how it moves between server and browser: today, what's wrong with it, and the Jupyter-shaped target |
+| [Core and App](./12-core-and-app.md) | What `simple-steps-core` owns and what this repo owns, the rules at the line, and how a change crosses it |
+
+## Earlier documents
+
+Written before the app moved its engine to `simple-steps-core`. Parts are out
+of date — notably the formula syntax (`=op.map(…)` is now the older syntax),
+the engine (core runs core-syntax steps), and the data flow. Read the current
+documents above first.
 
 | Document | Description |
 |---|---|
@@ -18,4 +34,4 @@ These documents are intended for contributors, maintainers, and anyone building 
 
 ## Reading Order
 
-If you're new to the codebase, start with the **Architecture Overview**, then read the **Formula System** (the conceptual core), then the **Orchestration Engine** (the execution core). The remaining documents can be read in any order based on what you're working on.
+If you're new to the codebase, read the **Object Model**, then **Core and App**, then **Data Flow & Storage**. The earlier documents are background on how the app worked before core.
