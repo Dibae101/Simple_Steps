@@ -20,6 +20,10 @@ interface MenuBarProps {
   onSaveAs: () => void;
   onRename: () => void;
   onEditFiles?: () => void;
+  /** Download the workflow's results as one Prefab page (spec 015). */
+  onExportPrefab?: () => void;
+  /** Whether any step has output to export yet. */
+  canExportPrefab?: boolean;
   // Phase A.5 — workspace management
   /** Display name of the active workspace (basename of its absolute path). */
   workspaceName?: string;
@@ -42,6 +46,8 @@ export default function MenuBar({
   onSaveAs,
   onRename,
   onEditFiles,
+  onExportPrefab,
+  canExportPrefab = false,
   workspaceName,
   recentWorkspaces = [],
   onOpenWorkspace,
@@ -83,6 +89,11 @@ export default function MenuBar({
     { label: 'Save',             shortcut: '⌘S',  onClick: () => { closeMenus(); onSave(); } },
     { label: 'Save As…',         shortcut: '⇧⌘S', onClick: () => { closeMenus(); onSaveAs(); } },
     { label: 'Rename',                             onClick: () => { closeMenus(); onRename(); } },
+    ...(onExportPrefab ? [
+      { label: '', separator: true, onClick: () => {} },
+      { label: 'Export Results as Prefab Page…', disabled: !canExportPrefab,
+        onClick: () => { closeMenus(); onExportPrefab(); } },
+    ] : []),
   ];
 
   // Workspace-management section (Phase A.5).  Only shown if the host wired

@@ -27,7 +27,7 @@ import ResourcesMenu from './ResourcesMenu';
 import BarChevrons from './BarChevrons';
 import WorkflowOverview from './WorkflowOverview';
 import { useConnection } from '../hooks/useConnection';
-import { fetchWorkspaceInfo, openWorkspace, WorkflowExistsError, type ResourceDeclaration, type WorkspaceInfo } from '../services/api';
+import { exportPrefabPage, fetchWorkspaceInfo, openWorkspace, WorkflowExistsError, type ResourceDeclaration, type WorkspaceInfo } from '../services/api';
 import './MainLayout.css';
 
 // ── Layout constants ───────────────────────────────────────────────────────
@@ -310,6 +310,33 @@ export default function MainLayout() {
       suppressModified.current = false;
     }
   }, [activeTab, saveWorkflow]);
+
+  /** File → Export Results as Prefab Page… (spec 015): download every step's
+   *  output, in order, as one standalone page. */
+  const handleExportPrefab = useCallback(async () => {
+    try {
+      const { blob, filename } = await exportPrefabPage(
+        workflow.name || 'Untitled',
+        workflow.steps.map((s, i) => ({
+          name: s.label || `Step ${i + 1}`,
+          formula: s.formula || '',
+          ref: s.outputRefId ?? null,
+        })),
+      );
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      // Revoked a moment later: some browsers cancel a download whose URL goes at once.
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      window.alert(`Couldn't export the results: ${message}`);
+    }
+  }, [workflow.name, workflow.steps]);
 
   const handleRename = useCallback((newName: string) => {
     setOpenTabs(prev => prev.map(t => {
@@ -746,6 +773,8 @@ export default function MainLayout() {
         onSave={handleSave}
         onSaveAs={handleSaveAs}
         onRename={() => setRenameModalOpen(true)}
+        onExportPrefab={handleExportPrefab}
+        canExportPrefab={workflow.steps.some((s) => Boolean(s.outputRefId))}
         onEditFiles={handleOpenFileEditor}
         workspaceName={workspaceInfo?.name}
         recentWorkspaces={workspaceInfo?.recent_workspaces ?? []}

@@ -337,6 +337,21 @@ class DataViewRequest(BaseModel):
     offset: int = 0
     limit: int = 50
 
+
+# --- 6b. Export results as a Prefab page (docs/spec/015-prefab-views.md) ---
+class PrefabExportStep(BaseModel):
+    """One step of the page: its name, its formula and its output's ref."""
+    name: str = Field("", max_length=200)
+    formula: str = Field("", max_length=20_000)
+    # The {session token}__{uuid hex} shape save_dataframe / save_raw_value
+    # mint, so nothing path-like ever reaches the result store.
+    ref: Optional[str] = Field(None, pattern=r"^[A-Za-z0-9_-]{1,128}__[0-9a-f]{32}$")
+
+
+class PrefabExportRequest(BaseModel):
+    title: str = Field("Untitled", max_length=200)
+    steps: List[PrefabExportStep] = Field(..., min_length=1, max_length=500)
+
 # ── Legacy shims (kept so existing file_manager.py compiles) ──────────────
 class ProjectMetadata(BaseModel):
     id: str

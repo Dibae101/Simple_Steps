@@ -500,6 +500,37 @@ export interface CellView {
         | { kind: 'text'; text: string };
 }
 
+/** One step of an exported results page (POST /api/export/prefab, spec 015). */
+export interface PrefabExportStep {
+    name: string;
+    formula: string;
+    ref?: string | null;
+}
+
+/**
+ * The workflow's results as one standalone Prefab page, to download. The
+ * server includes a step's output only if this session ran it; its reason is
+ * the error's message when it refuses (nothing run yet, no prefab-ui).
+ */
+export async function exportPrefabPage(
+    title: string,
+    steps: PrefabExportStep[],
+): Promise<{ blob: Blob; filename: string }> {
+    const r = await fetch(`${API_BASE}/export/prefab`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ title, steps }),
+    });
+    if (!r.ok) {
+        const body = await r.json().catch(() => ({}));
+        throw new Error(typeof body.detail === 'string' ? body.detail : `Export failed (${r.status})`);
+    }
+    const disposition = r.headers.get('Content-Disposition') ?? '';
+    const filename = /filename="([^"]+)"/.exec(disposition)?.[1] ?? 'results.html';
+    return { blob: await r.blob(), filename };
+}
+
 export async function fetchCellView(refId: string, row: number, column: string): Promise<CellView> {
     const qs = new URLSearchParams({ row: String(row), column });
     const r = await fetch(`${API_BASE}/cell/${encodeURIComponent(refId)}?${qs}`, { credentials: 'include' });

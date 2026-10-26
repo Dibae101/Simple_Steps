@@ -69,6 +69,15 @@ app, its cookies or its API.
 - Prefab fills in `{{ … }}` in every string of a view from its state, so text
   that should show braces literally needs care.
 
+## Share the results
+
+**File → Export Results as Prefab Page…** downloads one HTML file with every
+step of the open workflow: its name, formula and output. Tables, numbers,
+images and Prefab views are drawn on the page; Plotly charts appear as their
+summary. Run the workflow first: a step that hasn't run is marked "Not run".
+Anyone can open the file in a browser, without Simple Steps, as long as they
+are online (it loads Prefab's renderer from jsDelivr, pinned to your version).
+
 ## How it is shown
 
 The viewer asks the server for the cell; the server builds the page with

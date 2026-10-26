@@ -16,6 +16,7 @@ from .models import (
     DataViewRequest,
     ProjectInfo,
     PipelineFile,
+    PrefabExportRequest,
 )
 from .operations import DEFINITIONS as OPERATIONS
 from .engine import run_operation, get_dataframe, get_value, _get_raw_only, _ref_exists_in_raw_store
@@ -1098,6 +1099,39 @@ def get_prefab_renderer(version: str, name: str):
         "Access-Control-Allow-Origin": "*",
         "Cache-Control": "public, max-age=31536000, immutable",
         "X-Content-Type-Options": "nosniff",
+    })
+
+
+@app.post("/api/export/prefab")
+def export_prefab_page(request: PrefabExportRequest, session_id: str = Depends(get_session_id)):
+    """The workflow's results as one standalone Prefab page, downloaded as a
+    file (spec 015 REQ-PFB-030). Session-scoped like ``/api/data``: a step's
+    output is included only if this session ran it. A plain ``def``, so the
+    image encoding runs in the threadpool, not on the event loop.
+    """
+    from .prefab_pages import (NothingToExport, export_filename, export_page,
+                               prefab_missing)
+    if prefab_missing():
+        raise HTTPException(status_code=501, detail='Exporting a Prefab page needs prefab-ui: '
+                                                    'pip install "simple-steps[prefab]"')
+
+    def load(ref: str) -> tuple:
+        if _ref_exists_in_raw_store(ref, session_id=session_id):
+            return True, _get_raw_only(ref, session_id=session_id)
+        df = get_dataframe(ref, session_id=session_id)
+        return df is not None, df
+
+    try:
+        page = export_page(request.title, [s.model_dump() for s in request.steps], load)
+    except NothingToExport as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    except Exception as exc:
+        tb_module.print_exc()
+        raise HTTPException(status_code=500,
+                            detail=f"Couldn't build the Prefab page: {type(exc).__name__}: {exc}")
+    return Response(page, media_type="text/html; charset=utf-8", headers={
+        "Content-Disposition": f'attachment; filename="{export_filename(request.title)}"',
+        "Cache-Control": "no-store",
     })
 
 

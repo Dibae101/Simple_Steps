@@ -75,10 +75,55 @@ def board(data, metrics):
     return True
 
 
+def check_export() -> int:
+    """TEST-PFB-31: the workflow's results export as one standalone page — the
+    renderer pinned to the installed prefab-ui, strict JSON, text shown
+    literally, titles escaped, a step that never ran said so. 0 if it holds."""
+    import json
+    from SIMPLE_STEPS import prefab_pages
+    print("── prefab_views/export")
+    if prefab_missing():
+        print(f"SKIP  {prefab_missing()}\n")
+        return 0
+    wf = pipeline.build_views()
+    wf.run_all()
+    outputs = {name: wf.step(name).output.data for name in ("readings", "cards", "board")}
+    steps = [{"name": n, "formula": f"={n}", "ref": n} for n in outputs]
+    steps.append({"name": "</title><script>x</script> {{ y }}", "formula": "", "ref": None})
+    shell = prefab_pages.export_page("</title><script>x</script>", steps,
+                                     lambda ref: (ref in outputs, outputs.get(ref)))
+    inner = prefab_pages.export_inner_page(shell)
+    start = inner.rfind(prefab_pages._DATA_OPEN) + len(prefab_pages._DATA_OPEN)
+    text = inner[start:inner.find("</script>", start)]
+    problems = []
+    try:
+        data = json.loads(text, parse_constant=lambda c: (_ for _ in ()).throw(ValueError(c)))
+    except ValueError as exc:
+        problems.append(f"the page's data isn't strict JSON: {exc}")
+        data = {}
+    pinned = f"cdn.jsdelivr.net/npm/@prefecthq/prefab-ui@{prefab_pages.version()}/dist/app/renderer.js"
+    if pinned not in inner:
+        problems.append("the renderer isn't pinned to the installed prefab-ui")
+    if "<script>x</script>" in shell or "<script>x</script>" in inner:
+        problems.append("a title went into the page unescaped")
+    if "{{ y }}" in json.dumps(data, ensure_ascii=False):
+        problems.append("a step name's {{ … }} would be filled in by prefab")
+    found = [n.get("type") for n in _nodes(data.get("view"))]
+    if found.count("Card") < 4 + len(steps) or "BarChart" not in found or "Image" in found:
+        problems.append(f"unexpected components: {sorted(set(found))}")
+    if "Not run." not in json.dumps(data):
+        problems.append("the step that never ran isn't marked")
+    if problems:
+        print("FAIL  export_page\n      → " + "\n      → ".join(problems) + "\n")
+        return 1
+    print(f"PASS  export_page      {len(shell):,} bytes, {len(steps)} steps\n")
+    return 0
+
+
 example.check("prefab_views", "views", twin=pipeline.build_views, skip=prefab_missing, expect={
     "readings": {"city": CITIES, "n": NS},
     "cards": cards,
     "board": board,
 })
 
-sys.exit(example.finish())
+sys.exit(example.finish() or check_export())

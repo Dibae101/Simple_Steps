@@ -84,6 +84,33 @@ grid shows a summary, the viewer draws the figure.
 - **REQ-PFB-024** `example_check.same()` compares Prefab values by their wire
   JSON (plus a `PrefabApp`'s title).
 
+## Export: results as a Prefab page
+
+- **REQ-PFB-030** `POST /api/export/prefab` with `{title, steps: [{name, formula,
+  ref}]}` (title ≤ 200 characters; 1–500 steps; a ref must have the
+  `{session token}__{uuid}` shape) returns one standalone HTML page as an
+  attachment, `<slug>-results.html`, `Cache-Control: no-store`. Session-scoped:
+  a step's output is included only if this session holds it. Errors: no
+  prefab-ui 501; no step has output 422 `Nothing to export yet: run the
+  workflow first.`; anything else 500 with the reason.
+- **REQ-PFB-031** The page: a heading (the title), the export date and step
+  count, then a card per step in order — its name, its shape (`4 rows × 2
+  columns`, `one value`, `not run`, `not in this session`), its formula, and
+  its output: tables as a `DataTable` (200 rows at most), image and Prefab
+  columns as a grid (50 items at most), a single number as a `Metric`, other
+  single values as text, images as PNGs (512 px at most, 20 MB per page),
+  charts and other rich values as their summary, and Prefab views inlined
+  (an app's state merged into the page; an app with its own theme, CSS,
+  scripts, definitions or a clashing state key is noted instead). Every string
+  the export writes is shown literally (`{{` isn't filled in), titles are
+  escaped, the data is strict JSON. The renderer loads from jsDelivr pinned to
+  the installed prefab-ui, and the page says so on itself if it can't load or
+  a view breaks. The file is a thin shell with the page in a frame that fills
+  the window: as a top-level page, prefab-ui 0.20.2's charts draw without
+  their bars.
+- **REQ-PFB-032** File → **Export Results as Prefab Page…** downloads it; it is
+  disabled until a step has output, and a refusal shows the server's reason.
+
 ## Packaging and docs
 
 - **REQ-PFB-040** The extra `prefab = ["prefab-ui==0.20.2"]`, pinned exactly

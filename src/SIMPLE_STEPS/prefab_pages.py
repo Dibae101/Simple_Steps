@@ -32,7 +32,7 @@ import json
 import logging
 import math
 import re
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Callable, Dict, Optional, Tuple
 
 log = logging.getLogger(__name__)
 
@@ -250,3 +250,289 @@ def renderer_asset(ver: str, name: str) -> Optional[Tuple[bytes, str]]:
     if name not in _MEDIA or prefab_missing() or ver != version():
         return None
     return _renderer_files(ver)[name], _MEDIA[name]
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Export: a workflow's results as one standalone Prefab page (REQ-PFB-030..032)
+# ─────────────────────────────────────────────────────────────────────────────
+
+#: Rows of a table, and items of an image or view column, put on the page.
+EXPORT_TABLE_ROWS = 200
+EXPORT_ITEMS = 50
+#: Longest side of an exported image, and the most image data on one page.
+EXPORT_IMAGE_SIDE = 512
+EXPORT_IMAGE_BUDGET = 20_000_000
+
+#: The exported page is opened outside the app (often from disk), so instead of
+#: posting to a parent it says on the page itself why it couldn't be drawn.
+EXPORT_REPORTER = """<script>
+(function () {
+  var shown = false;
+  function show(text) {
+    if (shown) return;
+    shown = true;
+    function put() {
+      var box = document.createElement("div");
+      box.setAttribute("role", "alert");
+      box.style.cssText = "font:14px/1.45 system-ui,sans-serif;margin:16px;padding:12px 14px;" +
+        "border:1px solid #d4a017;background:#fff8e1;color:#4d3a00;border-radius:6px";
+      box.textContent = "This page couldn't be drawn: " + text;
+      document.body.insertBefore(box, document.body.firstChild);
+    }
+    if (document.body) put(); else document.addEventListener("DOMContentLoaded", put);
+  }
+  window.addEventListener("error", function (e) {
+    var t = e.target;
+    if (t && t !== window) {
+      if (t.tagName === "SCRIPT" || (t.tagName === "LINK" && /stylesheet/i.test(t.rel || "")))
+        show("its renderer couldn't be loaded from cdn.jsdelivr.net (are you offline?)");
+      return;
+    }
+    var m = String(e.message || "");
+    if (/^ResizeObserver loop/.test(m)) return;
+    show("one of its views is invalid (" + m.slice(0, 300) + ")");
+  }, true);
+})();
+</script>"""
+
+#: PrefabApp settings an inlined app can't bring onto a shared page.
+_APP_ONLY = ("theme", "css", "stylesheets", "scripts", "js_pipes", "js_actions",
+             "key_bindings", "mode", "defs")
+
+
+class NothingToExport(PrefabPageError):
+    """No step in the request has an output in this session."""
+
+
+def _literal(text: Any) -> str:
+    """*text* as prefab shows it literally: prefab fills in ``{{ … }}`` in every
+    string from the page's state, so a zero-width space splits the braces."""
+    return str(text).replace("{{", "{\u200b{")
+
+
+def export_filename(title: str) -> str:
+    """``<slug>-results.html`` for a workflow title."""
+    slug = "-".join(re.findall(r"[a-z0-9]+", (title or "").lower()))[:60].strip("-")
+    return f"{slug or 'workflow'}-results.html"
+
+
+class _Export:
+    """Builds the page's view: prefab's own components for everything this page
+    writes, and the users' views spliced in as their wire JSON."""
+
+    def __init__(self, load: Callable[[str], Tuple[bool, Any]]):
+        self.load = load
+        self.any_output = False
+        self.state: Dict[str, Any] = {}
+        self.slots: Dict[str, Dict[str, Any]] = {}
+        self.image_bytes = 0
+
+    # ── steps ────────────────────────────────────────────────────────────
+    def step_card(self, name: str, formula: str, ref: Optional[str]) -> Any:
+        from prefab_ui.components import (Card, CardContent, CardDescription, CardHeader,
+                                          CardTitle, Code, Column, Muted)
+        if not ref:
+            what, body = "not run", [Muted("Not run.")]
+        else:
+            found, value = self.load(ref)
+            if not found:
+                what = "not in this session"
+                body = [Muted("Its output isn't in this session any more; run it again to include it.")]
+            else:
+                self.any_output = True
+                try:
+                    what, body = self.output(name, value)
+                except Exception as exc:
+                    log.warning("Couldn't export a step's output", exc_info=True)
+                    what, body = "output", [Muted(_literal(
+                        f"Couldn't include this output: {type(exc).__name__}: {exc}"))]
+        content = ([Code(_literal(formula), language="python")] if formula else []) + body
+        return Card(children=[
+            CardHeader(children=[CardTitle(_literal(name)), CardDescription(_literal(what))]),
+            CardContent(children=[Column(gap=3, children=content)]),
+        ])
+
+    def output(self, name: str, value: Any) -> Tuple[str, list]:
+        import pandas as pd
+        if isinstance(value, pd.DataFrame):
+            rows, cols = value.shape
+            what = f"{rows} row{'' if rows == 1 else 's'} × {cols} column{'' if cols == 1 else 's'}"
+            if rows == 1 and cols == 1:
+                return what, [self.value(name, str(value.columns[0]), value.iloc[0, 0])]
+            return what, self.table(name, value)
+        if value is None:
+            from prefab_ui.components import Muted
+            return "one value", [Muted("empty")]
+        return "one value", [self.value(name, "value", value)]
+
+    # ── values ───────────────────────────────────────────────────────────
+    def value(self, name: str, column: str, value: Any) -> Any:
+        from prefab_ui.components import Metric, Muted, Text
+        from .cell_types import _is_missing, cell_type_of
+        kind = cell_type_of(value)
+        if kind is None:
+            if _is_missing(value):
+                return Muted("empty")
+            number = value.item() if hasattr(value, "item") and not isinstance(value, str) else value
+            if (isinstance(number, (int, float)) and not isinstance(number, bool)
+                    and math.isfinite(float(number))):
+                return Metric(label=_literal(column), value=number)
+            return Text(_literal(value))
+        if kind.name == "prefab":
+            return self.view(name, value, kind.summary(value))
+        if kind.name == "image":
+            return self.image(name, value, kind.summary(value))
+        if kind.name == "table":
+            return self.data_table(value)[0]
+        return Text(_literal(kind.summary(value)))
+
+    def view(self, name: str, value: Any, summary: str) -> Any:
+        """A user's view, spliced in later; an app only if it fits on a shared page."""
+        from prefab_ui.components import Div, Muted
+        if is_prefab_app(value):
+            app = _copy(value)
+            clashes = [k for k, v in (app.state or {}).items() if k in self.state and self.state[k] != v]
+            if any(getattr(app, field, None) for field in _APP_ONLY) or clashes:
+                return Muted(_literal(f"{summary} — open it in Simple Steps; it can't share a page "
+                                      "with the views above."))
+            wire = app.to_json()
+            node = wire.get("view")
+            if isinstance(node, dict) and isinstance(node.get("cssClass"), str):
+                css = " ".join(c for c in node["cssClass"].split() if c != "pf-app-root")
+                node = {**node, "cssClass": css} if css else {k: v for k, v in node.items() if k != "cssClass"}
+            self.state.update(wire.get("state") or {})
+        else:
+            node = _copy(value).to_json()
+        key = f"ss-export-slot-{len(self.slots)}"
+        self.slots[key] = node
+        return Div(css_class=key)
+
+    def image(self, name: str, value: Any, summary: str) -> Any:
+        from prefab_ui.components import Image, Muted
+        from .cell_types import _data_url, _image_png
+        src = _data_url(_image_png(value, EXPORT_IMAGE_SIDE))
+        if self.image_bytes + len(src) > EXPORT_IMAGE_BUDGET:
+            return Muted(_literal(f"{summary} — too large for this page"))
+        self.image_bytes += len(src)
+        return Image(src=src, alt=_literal(name))
+
+    # ── tables ───────────────────────────────────────────────────────────
+    def table(self, name: str, df: Any) -> list:
+        from prefab_ui.components import Grid, H4, Muted
+        from .cell_types import _is_missing, cell_type_of
+        parts: list = []
+        plain = []
+        for column in df.columns:
+            values = [v for v in df[column].tolist() if not _is_missing(v)]
+            kinds = {getattr(cell_type_of(v), "name", None) for v in values}
+            if values and kinds in ({"image"}, {"prefab"}):
+                items = [self.value(name, str(column), v) for v in values[:EXPORT_ITEMS]]
+                parts += [H4(_literal(column)),
+                          Grid(columns=4 if kinds == {"image"} else 2, gap=3, children=items)]
+                if len(values) > EXPORT_ITEMS:
+                    parts.append(Muted(f"Showing {EXPORT_ITEMS} of {len(values)}."))
+            else:
+                plain.append(column)
+        if plain:
+            parts = self.data_table(df[plain]) + parts
+        return parts
+
+    def data_table(self, df: Any) -> list:
+        from prefab_ui.components import DataTable, DataTableColumn, Muted
+        from .cell_types import cell_type_of, is_plain, jsonable
+        columns = list(df.columns)
+        keys = [f"c{i}" for i in range(len(columns))]
+        rows = []
+        for record in df.head(EXPORT_TABLE_ROWS).itertuples(index=False, name=None):
+            row = {}
+            for key, v in zip(keys, record):
+                if is_plain(v):
+                    v = jsonable(v)
+                    row[key] = _literal(v) if isinstance(v, str) else v
+                else:
+                    kind = cell_type_of(v)
+                    row[key] = _literal(kind.summary(v) if kind else repr(v))
+            rows.append(row)
+        table = DataTable(columns=[DataTableColumn(key=k, header=_literal(c)) for k, c in zip(keys, columns)],
+                          rows=rows)
+        out = [table]
+        if len(df) > EXPORT_TABLE_ROWS:
+            out.append(Muted(f"Showing {EXPORT_TABLE_ROWS} of {len(df)} rows."))
+        return out
+
+    # ── assembly ─────────────────────────────────────────────────────────
+    def fill(self, node: Any) -> Any:
+        """The wire tree with every placeholder replaced by its user view."""
+        if isinstance(node, dict):
+            css = node.get("cssClass")
+            if isinstance(css, str) and css in self.slots:
+                return self.slots[css]
+            return {k: self.fill(v) for k, v in node.items()}
+        if isinstance(node, list):
+            return [self.fill(v) for v in node]
+        return node
+
+
+def export_page(title: str, steps: list, load: Callable[[str], Tuple[bool, Any]]) -> str:
+    """One standalone HTML page of a workflow's step outputs, in request order.
+
+    *steps* are ``{"name", "formula", "ref"}``; ``load(ref)`` returns
+    ``(found, value)`` for this session. The page loads the renderer from
+    jsDelivr, pinned to the installed prefab-ui, so whoever opens the file
+    needs no Simple Steps; it says so on the page if the renderer can't load.
+    Raises :class:`NothingToExport` when no step has an output.
+    """
+    import datetime as _dt
+    from prefab_ui.app import PrefabApp
+    from prefab_ui.components import Column, Heading, Muted
+
+    title = (title or "").strip() or "Untitled"
+    export = _Export(load)
+    cards = [export.step_card((s.get("name") or "").strip() or f"Step {i + 1}",
+                              s.get("formula") or "", s.get("ref"))
+             for i, s in enumerate(steps)]
+    if not export.any_output:
+        raise NothingToExport("Nothing to export yet: run the workflow first.")
+    n = len(steps)
+    view = Column(gap=6, children=[
+        Heading(_literal(title)),
+        Muted(f"Exported from Simple Steps on {_dt.date.today().isoformat()} · {n} step{'' if n == 1 else 's'}"),
+        *cards,
+    ])
+    page_title = _html.escape(f"{title} · results", quote=False)
+    page = PrefabApp.model_construct(
+        title=page_title,
+        view=export.fill(view.to_json()),
+        state=export.state or None,
+    ).html(renderer_mode="cdn")
+    if f"@prefecthq/prefab-ui@{version()}/" not in page:
+        raise PrefabPageError(f"prefab-ui {version()} didn't pin its CDN renderer")
+    page = _inject(_strict_json(page), '<meta charset="utf-8">\n' + EXPORT_REPORTER)
+    return EXPORT_SHELL.format(title=page_title, page=_html.escape(page, quote=True))
+
+
+#: The downloaded file is a thin shell with the page in a frame. As the
+#: top-level window, prefab-ui 0.20.2's renderer finds no host (it messages
+#: itself) and its charts then draw without their bars; inside a frame they
+#: draw, as they do in the cell viewer. The frame fills the window.
+EXPORT_SHELL = """<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{title}</title>
+<style>html,body{{margin:0;height:100%;background:#fff}}iframe{{display:block;width:100%;height:100%;border:0}}</style>
+</head>
+<body>
+<iframe title="{title}" srcdoc="{page}"></iframe>
+</body>
+</html>
+"""
+
+
+def export_inner_page(shell: str) -> str:
+    """The page inside an exported file's shell (for checks)."""
+    match = re.search(r'srcdoc="([^"]*)"', shell)
+    if not match:
+        raise PrefabPageError("not an exported Prefab page")
+    return _html.unescape(match.group(1))
