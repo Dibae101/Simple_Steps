@@ -28,7 +28,11 @@ const ACTIVE_HEADER_BG = '#e2e5ea';
 interface Mark { id: number; left: number; top: number; width: number; height: number }
 
 /** A typed cell's icon when it has no thumbnail (Material Symbols, never emoji). */
-const TYPE_ICONS: Record<string, SymbolName> = { plotly: 'show_chart', table: 'table_chart', json: 'data_object' };
+const TYPE_ICONS: Record<string, SymbolName> = {
+  plotly: 'show_chart', table: 'table_chart', json: 'data_object',
+  // A Prefab view is never drawn in the grid: the cell viewer opens it (spec 015).
+  prefab: 'dashboard',
+};
 
 /**
  * What a cell shows. Text and numbers as they are; a typed value (an image, a

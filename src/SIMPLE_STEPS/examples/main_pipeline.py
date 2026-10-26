@@ -16,6 +16,7 @@ from SIMPLE_STEPS.operations import to_rows
 from basic.basic_tools import add_n, is_big, scale
 from dummy_llm.llm_tools import FakeDB, FakeLLM, enrich, summarize
 from plotly_charts.chart_tools import bar_chart, swatch
+from prefab_views.view_tools import readings_board
 
 identity = op("identity")  # core's built-in tool, by name, as core's own example writes it
 
@@ -46,6 +47,8 @@ def build_all_examples() -> grid.Workflow:
     # plotly_charts: an image per row, and one chart of them all
     wf["swatches"] = swatch[mod.map(name="swatch")](wf["big"])
     wf["chart"] = bar_chart[mod.collapse()](wf["big"])
+    # prefab_views: one Prefab dashboard of the filtered rows (needs prefab-ui)
+    wf["board"] = readings_board[mod.collapse()](wf["big"])
     return wf
 
 

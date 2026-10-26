@@ -17,7 +17,8 @@ examples/
 ├── plotly_charts/    Plotly charts and other rich cells     → plotly_charts/README.md
 ├── image_processing/ a folder of images as a resource      → image_processing/README.md
 ├── agent_demo/       build a workflow by asking the agent   → agent_demo/README.md
-└── bad_examples/     mistakes, and how to fix them          → bad_examples/README.md
+├── bad_examples/     mistakes, and how to fix them          → bad_examples/README.md
+└── prefab_views/     Prefab views in cells (needs [prefab]) → prefab_views/README.md
 ```
 
 Each sub-example has the same five parts:
@@ -149,6 +150,7 @@ their resources, and `all-examples` uses them together:
 | `total_n` | `add_n[mod.collapse(initial=0)](wf["big"])` | basic |
 | `swatches` | `swatch[mod.map(name="swatch")](wf["big"])` | plotly_charts |
 | `chart` | `bar_chart[mod.collapse()](wf["big"])` | plotly_charts |
+| `board` | `readings_board[mod.collapse()](wf["big"])` — a Prefab dashboard, or without prefab-ui the install command | prefab_views |
 
 ## Adding a sub-example
 

@@ -349,7 +349,13 @@ def _unmet(expectation: Expectation, run: StepRun) -> List[str]:
 def same(a: Any, b: Any) -> bool:
     """Whether two cell values are the same result: missing values (None, NaN,
     pd.NA) match each other, floats match within rounding, arrays, tables and
-    Plotly figures by content, and a tuple matches the list JSON makes of it."""
+    Plotly figures by content, Prefab views by their wire JSON (what the
+    renderer draws), and a tuple matches the list JSON makes of it."""
+    from .prefab_pages import is_prefab, prefab_wire
+    if is_prefab(a) or is_prefab(b):
+        return (is_prefab(a) and is_prefab(b)
+                and json.dumps(prefab_wire(a), sort_keys=True, default=str)
+                == json.dumps(prefab_wire(b), sort_keys=True, default=str))
     if _missing(a) or _missing(b):
         return _missing(a) and _missing(b)
     if isinstance(a, np.ndarray) or isinstance(b, np.ndarray):

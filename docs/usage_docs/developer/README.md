@@ -10,6 +10,7 @@ your users build workflows from them in the UI — see the
 |---|---|
 | [01 — Build an application](01-build-an-app.md) | you have Python functions and want them in the UI |
 | [02 — Set up the agent](02-the-agent.md) | you want the chat pane on, with your model, and your tools easy for it |
+| [03 — Prefab views in cells](03-prefab-views.md) | a tool should return a small interface (cards, numbers, a chart) that opens from its cell |
 
 The formula syntax your users write is in the User guide:
 [04 — Expressions](../user/04-expressions.md). It is valid Python, so the same

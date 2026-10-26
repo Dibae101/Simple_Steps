@@ -66,8 +66,14 @@ media = [
     # Plotly is a regular dependency now; `[media]` adds Pillow image cells.
     "pillow>=10.0",
 ]
+# Prefab views in cells (docs/spec/015-prefab-views.md). Pinned exactly: the
+# cell viewer serves the renderer from this package, and the exported page
+# loads the same version from jsDelivr.
+prefab = [
+    "prefab-ui==0.20.2",
+]
 dev = [
-    "simple-steps[media]",
+    "simple-steps[media,prefab]",
     "pytest>=8.0",
     "httpx2>=0.28",
     "ruff>=0.6",

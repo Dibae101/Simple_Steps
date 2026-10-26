@@ -25,13 +25,16 @@ kind        fields                                          for
 ``plotly``  ``figure`` (Plotly's JSON)                      Plotly figures
 ``table``   ``columns``, ``rows``, ``total``                a DataFrame in a cell
 ``json``    ``value``                                       dicts, lists, arrays
+``prefab``  ``html`` (a whole page), ``title``, ``error``   Prefab components and apps
 ``text``    ``text``                                        anything else (``repr``)
 ==========  ==============================================  =================
 
 A developer adds a type with :func:`register_cell_type`; its ``view`` returns
-one of these kinds. Pillow and Plotly are optional (the ``media`` extra): a
-type is only recognized by its module name, so neither is imported here, and
-numpy image arrays are encoded to PNG with the standard library.
+one of these kinds. Pillow, Plotly and prefab-ui are optional (the ``media``
+and ``prefab`` extras): a type is only recognized by its module name, so none
+of them is imported here, and numpy image arrays are encoded to PNG with the
+standard library. A ``prefab`` view's page is built by ``prefab_pages.py`` and
+shown in a sandboxed iframe (docs/spec/015-prefab-views.md).
 """
 
 from __future__ import annotations
@@ -283,6 +286,77 @@ register_cell_type(CellType("plotly", _is_plotly, _plotly_summary, _plotly_view)
 register_cell_type(CellType("image", lambda v: _is_image_array(v) or _is_pil_image(v),
                             _image_summary, _image_view,
                             preview=lambda v: _data_url(_image_png(v, THUMBNAIL))))
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Prefab views (prefab-ui, optional) — docs/spec/015-prefab-views.md
+# ─────────────────────────────────────────────────────────────────────────────
+
+#: Component classes whose text names a view (``Card · Readings``).
+_HEADINGS = {"CardTitle", "Heading", "H1", "H2", "H3", "H4"}
+
+
+def is_prefab(value: Any) -> bool:
+    """A Prefab component or ``PrefabApp``, recognized by class name and module
+    (subclasses included) so prefab-ui is never imported to check."""
+    from .prefab_pages import is_prefab as _is_prefab
+    return _is_prefab(value)
+
+
+def _first_heading(root: Any, limit: int = 200) -> Optional[str]:
+    """The text of the first title or heading in the tree, depth first."""
+    stack, seen = [root], 0
+    while stack and seen < limit:
+        node = stack.pop()
+        seen += 1
+        if type(node).__name__ in _HEADINGS and isinstance(getattr(node, "content", None), str):
+            return node.content
+        children = getattr(node, "children", None)
+        if isinstance(children, (list, tuple)):
+            stack.extend(reversed(children))
+    return None
+
+
+def _short(text: str) -> str:
+    return text if len(text) <= SHORT else text[: SHORT - 1] + "…"
+
+
+def prefab_label(value: Any) -> str:
+    """What a Prefab view is called: an app's title, else the root component's
+    class and its first heading (``Card · SF``)."""
+    from .prefab_pages import is_prefab_app
+    root = value
+    if is_prefab_app(value):
+        title = getattr(value, "title", None)
+        if isinstance(title, str) and title.strip() and title != "Prefab":
+            return _short(title.strip())
+        root = getattr(value, "view", None)
+        if root is None or isinstance(root, dict):
+            return "PrefabApp"
+    text = _first_heading(root)
+    name = type(root).__name__
+    return _short(f"{name} · {text}" if text else name)
+
+
+def _prefab_summary(value: Any) -> str:
+    try:
+        return f"Prefab view · {prefab_label(value)}"
+    except Exception:                  # a summary never breaks the grid or the viewer
+        return "Prefab view"
+
+
+def _prefab_view(value: Any) -> Dict[str, Any]:
+    from .prefab_pages import cell_page
+    try:
+        title = prefab_label(value)
+    except Exception:
+        title = "Prefab view"
+    return cell_page(value, title)
+
+
+# Ahead of ``json``: a Prefab component has ``model_dump`` and would otherwise
+# become a lossy dict.
+register_cell_type(CellType("prefab", is_prefab, _prefab_summary, _prefab_view))
 
 
 # ─────────────────────────────────────────────────────────────────────────────

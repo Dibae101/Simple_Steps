@@ -89,6 +89,13 @@
       "meta": {
         "label": "chart"
       }
+    },
+    {
+      "name": "board",
+      "expression": "readings_board[mod.collapse()](wf[\"big\"])",
+      "meta": {
+        "label": "board"
+      }
     }
   ]
 }

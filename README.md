@@ -140,13 +140,21 @@ pip install -e ".[desktop]"
 
 This adds `pywebview`, which lets you run Simple Steps as a native desktop window — no browser required. See [Desktop mode](#desktop-mode-no-browser) below.
 
+### Option C2: Add Prefab views
+
+```bash
+pip install -e ".[prefab]"
+```
+
+This adds [`prefab-ui`](https://github.com/PrefectHQ/prefab), so a tool can return a small interface (cards, numbers, charts, tables) that opens from its cell. See [Prefab views in cells](docs/usage_docs/developer/03-prefab-views.md).
+
 ### Option D: Add dev tools
 
 ```bash
 pip install -e ".[dev]"
 ```
 
-This adds `pytest` and `ruff` for running tests and linting.
+This adds `pytest` and `ruff` for running tests and linting, plus the `media` and `prefab` extras.
 
 ### Option E: Add everything
 

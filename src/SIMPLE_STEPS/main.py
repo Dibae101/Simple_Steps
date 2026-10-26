@@ -1,5 +1,5 @@
 from fastapi import FastAPI, HTTPException, Body, Depends
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from .formula_parser import parse_formula, build_formula
@@ -1072,6 +1072,33 @@ async def get_cell_view(
     if not found:
         raise HTTPException(status_code=404, detail=f"No cell at row {row}, column {column!r}")
     return view(value)
+
+
+@app.get("/api/prefab/renderer/{version}/{name}")
+def get_prefab_renderer(version: str, name: str):
+    """prefab-ui's renderer (``renderer.js`` / ``renderer.css``) for the Prefab
+    pages the cell viewer shows (prefab_pages.py, spec 015 REQ-PFB-005).
+
+    The pages run in a sandboxed iframe with an opaque origin, so the browser
+    sends ``Origin: null`` and refuses a module script without
+    ``Access-Control-Allow-Origin: *``. The files are public package code, and
+    the version in the path makes caching them forever safe. No session.
+    """
+    from .prefab_pages import PrefabPageError, renderer_asset
+    try:
+        asset = renderer_asset(version, name)
+    except PrefabPageError as exc:
+        print(f"  ❌ Couldn't read the Prefab renderer: {exc}")
+        raise HTTPException(status_code=500,
+                            detail=f"Couldn't read the Prefab renderer from prefab-ui {version}: {exc}")
+    if asset is None:
+        raise HTTPException(status_code=404)
+    body, media_type = asset
+    return Response(body, media_type=media_type, headers={
+        "Access-Control-Allow-Origin": "*",
+        "Cache-Control": "public, max-age=31536000, immutable",
+        "X-Content-Type-Options": "nosniff",
+    })
 
 
 def _raw_value_at(raw: object, row: int, column: str) -> tuple:

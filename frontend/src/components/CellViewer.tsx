@@ -204,9 +204,53 @@ function ViewBody({ view }: { view: CellView['view'] }) {
       );
     case 'json':
       return <div className="cv-json"><JsonNode value={view.value} open /></div>;
+    case 'prefab':
+      return <PrefabView html={view.html} title={view.title} error={view.error} />;
     default:
       return <pre className="cv-text">{view.text}</pre>;
   }
+}
+
+/**
+ * A Prefab view (docs/spec/015-prefab-views.md): the whole page the backend
+ * built with prefab-ui, in an iframe. The frame is sandboxed with scripts only
+ * — never `allow-same-origin` — so a view can't reach the app, its cookies or
+ * its API. Its page reports a renderer failure by `postMessage`; only a message
+ * from this frame's own window is believed, and it's shown as text.
+ */
+function PrefabView({ html, title, error }: { html: string | null; title?: string; error?: string }) {
+  const frame = useRef<HTMLIFrameElement>(null);
+  const [failure, setFailure] = useState<string | null>(null);
+
+  useEffect(() => {
+    setFailure(null);
+    const onMessage = (e: MessageEvent) => {
+      if (!frame.current || e.source !== frame.current.contentWindow) return;
+      const data = e.data as { source?: unknown; type?: unknown; message?: unknown } | null;
+      if (data && data.source === 'simple-steps-prefab' && data.type === 'error') {
+        setFailure(String(data.message ?? 'unknown error'));
+      }
+    };
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+  }, [html]);
+
+  if (!html) {
+    return <div className="cv-error" role="alert">Couldn't show this Prefab view: {error ?? 'no page was built'}</div>;
+  }
+  return (
+    <div className="cv-prefab-wrap">
+      {failure && <div className="cv-error" role="alert">The Prefab view failed in its renderer: {failure}</div>}
+      <iframe
+        ref={frame}
+        className="cv-prefab"
+        sandbox="allow-scripts"
+        srcDoc={html}
+        title={`Prefab view: ${title ?? 'view'}`}
+        referrerPolicy="no-referrer"
+      />
+    </div>
+  );
 }
 
 function formatScalar(v: unknown): string {

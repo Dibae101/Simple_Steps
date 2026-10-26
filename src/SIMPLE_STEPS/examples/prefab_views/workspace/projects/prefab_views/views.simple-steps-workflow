@@ -1,0 +1,33 @@
+{
+  "format_version": 2,
+  "id": "views",
+  "name": "Prefab views",
+  "meta": {
+    "source": "app only: Prefab views in cells, docs/spec/015-prefab-views.md",
+    "syntax": "core operation syntax, docs/dev_plan/120",
+    "twin": "examples/prefab_views/view_pipeline.py: build_views()"
+  },
+  "steps": [
+    {
+      "name": "readings",
+      "expression": "to_rows[mod.source()](data='{\"city\": [\"SF\", \"NYC\", \"LA\", \"SF\"], \"n\": [1, 4, 2, 3]}')",
+      "meta": {
+        "label": "readings"
+      }
+    },
+    {
+      "name": "cards",
+      "expression": "city_card[mod.map(name=\"card\")](wf[\"readings\"])",
+      "meta": {
+        "label": "cards"
+      }
+    },
+    {
+      "name": "board",
+      "expression": "readings_board[mod.collapse()](wf[\"readings\"])",
+      "meta": {
+        "label": "board"
+      }
+    }
+  ]
+}

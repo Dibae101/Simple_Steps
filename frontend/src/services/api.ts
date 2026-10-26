@@ -495,6 +495,8 @@ export interface CellView {
         | { kind: 'plotly'; figure: { data?: unknown[]; layout?: Record<string, unknown> } }
         | { kind: 'table'; columns: string[]; rows: unknown[][]; total: number }
         | { kind: 'json'; value: unknown }
+        /** A Prefab view: a whole page for a sandboxed iframe (spec 015), or an error. */
+        | { kind: 'prefab'; html: string | null; title?: string; error?: string }
         | { kind: 'text'; text: string };
 }
 

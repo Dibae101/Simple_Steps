@@ -26,6 +26,7 @@ Start at the [Developer guide](developer/README.md):
 |---|---|
 | [01 — Build an application](developer/01-build-an-app.md) | you have Python functions and want them in the UI |
 | [02 — Set up the agent](developer/02-the-agent.md) | you want the chat pane on, with your model, and your tools easy for it |
+| [03 — Prefab views in cells](developer/03-prefab-views.md) | a tool should return a small interface (cards, numbers, a chart) that opens from its cell |
 
 The shipped examples are the fuller reference, and they check themselves:
 [`src/SIMPLE_STEPS/examples/README.md`](../../src/SIMPLE_STEPS/examples/README.md).

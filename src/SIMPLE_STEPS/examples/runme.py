@@ -15,7 +15,18 @@ import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-SUB_EXAMPLES = ("basic", "dummy_llm", "plotly_charts", "image_processing", "agent_demo", "bad_examples")
+SUB_EXAMPLES = ("basic", "dummy_llm", "plotly_charts", "image_processing", "agent_demo",
+                "bad_examples", "prefab_views")
+
+
+def board_or_hint(data, metrics):
+    """The board is a Prefab dashboard — or, without prefab-ui, says how to
+    install it (the rest of the workflow runs either way)."""
+    from SIMPLE_STEPS.prefab_pages import INSTALL_HINT, is_prefab_app, prefab_missing
+    value = data["value"].iloc[0]
+    if prefab_missing():
+        return value == INSTALL_HINT or f"without prefab-ui the board should say {INSTALL_HINT!r}, got {value!r}"
+    return is_prefab_app(value) or f"the board should be a Prefab view, got {type(value).__name__}"
 
 
 def run_sub_examples() -> dict:
@@ -45,6 +56,7 @@ def check_main() -> bool:
         "total_n": {"value": [9]},
         "chart": lambda data, metrics: (list(data["value"].iloc[0].data[0].y) == [4, 2, 3])
                  or "the chart's bars should be 4, 2, 3",
+        "board": board_or_hint,
     })
     return example.finish() == 0
 

@@ -5,7 +5,7 @@ app.py — the main example: every sub-example's tools in one application.
     python examples/app.py
 
 It imports the tools of ``basic/``, ``dummy_llm/``, ``plotly_charts/``,
-``image_processing/``, ``agent_demo/`` and ``bad_examples/`` and offers their
+``image_processing/``, ``agent_demo/``, ``bad_examples/`` and ``prefab_views/`` and offers their
 resources, so one workflow can use them:
 ``workspace/projects/main/all-examples.simple-steps-workflow``. ``runme.py``
 runs every sub-example's checks, then that workflow's.
@@ -26,9 +26,10 @@ from basic import basic_tools
 from dummy_llm import llm_tools
 from image_processing import image_tools
 from plotly_charts import chart_tools
+from prefab_views import view_tools
 
 app = App(
-    tools=[basic_tools, llm_tools, chart_tools, image_tools, order_tools, bad_tools],
+    tools=[basic_tools, llm_tools, chart_tools, image_tools, order_tools, bad_tools, view_tools],
     resources=[*llm_tools.TYPES, image_tools.ImageDirectory],
     loaded=llm_tools.ready_made(),
     workspace=str(Path(__file__).resolve().parent / "workspace"),

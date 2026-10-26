@@ -120,6 +120,8 @@
 .si-display .si-content > .cv-embedded { flex: 1; min-width: 0; min-height: 0; }
 .si-display .cv-embedded .cv-body { flex: 1; min-height: 0; }
 .si-display .cv-embedded .cv-plotly { height: 100%; min-height: 0; }
+.si-display .cv-embedded .cv-prefab-wrap { height: 100%; min-height: 0; }
+.si-display .cv-embedded .cv-prefab { flex: 1; height: auto; min-height: 0; }
 
 /* Each side: a thin strip for the wiring toggle — inputs left, outputs right. */
 .si-side {
